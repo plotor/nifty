@@ -234,6 +234,8 @@ public class NiftyClient implements Closeable
                                             bossExecutor,
                                             workerExecutor,
                                             allChannels);
+
+        channelFactory.releaseExternalResources();
     }
 
     private ClientBootstrap createClientBootstrap(InetSocketAddress socksProxyAddress)
