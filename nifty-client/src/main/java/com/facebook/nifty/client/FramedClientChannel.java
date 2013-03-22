@@ -15,46 +15,38 @@
  */
 package com.facebook.nifty.client;
 
+import com.facebook.nifty.core.ThriftMessage;
+import com.facebook.nifty.core.ThriftTransportType;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.handler.codec.frame.LengthFieldBasedFrameDecoder;
-import org.jboss.netty.handler.codec.frame.LengthFieldPrepender;
-import org.jboss.netty.util.Timer;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.util.Timer;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
 @NotThreadSafe
-public class FramedClientChannel extends AbstractClientChannel {
+public class FramedClientChannel extends AbstractClientChannel<ByteBuf> {
     public FramedClientChannel(Channel channel, Timer timer) {
         super(channel, timer);
     }
 
     @Override
-    protected ChannelBuffer extractResponse(Object message) {
-        if (!(message instanceof ChannelBuffer)) {
+    protected ThriftMessage extractResponse(ByteBuf buffer) {
+        if (!buffer.isReadable()) {
             return null;
         }
 
-        ChannelBuffer buffer = (ChannelBuffer) message;
-        if (!buffer.readable()) {
-            return null;
-        }
-
-        return buffer;
+        return new ThriftMessage(buffer, getTransportType());
     }
 
     @Override
-    protected int extractSequenceId(ChannelBuffer message) throws TTransportException {
+    protected int extractSequenceId(ThriftMessage message) throws TTransportException {
         try {
             int sequenceId;
             int stringLength;
-            stringLength = message.getInt(4);
-            sequenceId = message.getInt(8 + stringLength);
+            stringLength = message.getBuffer().getInt(4);
+            sequenceId = message.getBuffer().getInt(8 + stringLength);
             return sequenceId;
         } catch (Throwable t) {
             throw new TTransportException("Could not find sequenceId in Thrift message");
@@ -62,8 +54,13 @@ public class FramedClientChannel extends AbstractClientChannel {
     }
 
     @Override
-    protected ChannelFuture writeRequest(ChannelBuffer request) {
-        return getNettyChannel().write(request);
+    protected ChannelFuture writeRequest(ThriftMessage request) {
+        return getNettyChannel().write(request.getBuffer());
     }
 
+    @Override
+    public ThriftTransportType getTransportType()
+    {
+        return ThriftTransportType.FRAMED;
+    }
 }

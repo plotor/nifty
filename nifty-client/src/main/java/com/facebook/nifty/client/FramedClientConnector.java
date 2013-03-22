@@ -16,13 +16,13 @@
 package com.facebook.nifty.client;
 
 import com.google.common.net.HostAndPort;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.handler.codec.frame.LengthFieldBasedFrameDecoder;
-import org.jboss.netty.handler.codec.frame.LengthFieldPrepender;
-import org.jboss.netty.util.Timer;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.codec.LengthFieldPrepender;
+import io.netty.util.Timer;
 
 import java.net.InetSocketAddress;
 
@@ -54,17 +54,17 @@ public class FramedClientConnector extends AbstractClientConnector<FramedClientC
     @Override
     public FramedClientChannel newThriftClientChannel(Channel nettyChannel, Timer timer) {
         FramedClientChannel channel = new FramedClientChannel(nettyChannel, timer);
-        channel.getNettyChannel().getPipeline().addLast("thriftHandler", channel);
+        channel.getNettyChannel().pipeline().addLast("thriftHandler", channel);
         return channel;
     }
 
     @Override
-    public ChannelPipelineFactory newChannelPipelineFactory(final int maxFrameSize) {
-        return new ChannelPipelineFactory() {
+    public NiftyChannelInitializer<SocketChannel> newChannelInitializer(final int maxFrameSize) {
+        return new NiftyChannelInitializer<SocketChannel>() {
             @Override
-            public ChannelPipeline getPipeline()
-                    throws Exception {
-                ChannelPipeline cp = Channels.pipeline();
+            public void initChannel(SocketChannel ch) throws Exception
+            {
+                ChannelPipeline cp = ch.pipeline();
                 cp.addLast("frameEncoder", new LengthFieldPrepender(LENGTH_FIELD_LENGTH));
                 cp.addLast(
                         "frameDecoder",
@@ -74,7 +74,6 @@ public class FramedClientConnector extends AbstractClientConnector<FramedClientC
                                 LENGTH_FIELD_LENGTH,
                                 LENGTH_ADJUSTMENT,
                                 INITIAL_BYTES_TO_STRIP));
-                return cp;
             }
         };
     }

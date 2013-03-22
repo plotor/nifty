@@ -16,8 +16,7 @@
 package com.facebook.nifty.client;
 
 import com.google.common.net.HostAndPort;
-import org.jboss.netty.bootstrap.ClientBootstrap;
-import org.jboss.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFuture;
 
 import java.net.InetSocketAddress;
 
@@ -35,7 +34,7 @@ public abstract class AbstractClientConnector<T extends NiftyClientChannel>
     }
 
     @Override
-    public ChannelFuture connect(ClientBootstrap bootstrap) {
+    public ChannelFuture connect(BootstrapWrapper bootstrap) {
         return bootstrap.connect(address);
     }
 

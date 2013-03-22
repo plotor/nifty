@@ -15,20 +15,22 @@
  */
 package com.facebook.nifty.client.socks;
 
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.DefaultChannelFuture;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelPromise;
+import io.netty.channel.DefaultChannelPromise;
 
 /**
  * A channel future that allow channel to be set at a later time.
  */
-public class SettableChannelFuture extends DefaultChannelFuture
+public class SettableChannelFuture extends DefaultChannelPromise
 {
     private Channel settableChannel = null;
     private boolean channelIsSet = false;
 
     public SettableChannelFuture()
     {
-        super(null, false);
+        super(null);
     }
 
     public void setChannel(Channel channel)
@@ -40,13 +42,13 @@ public class SettableChannelFuture extends DefaultChannelFuture
     }
 
     @Override
-    public Channel getChannel()
+    public Channel channel()
     {
-        return this.settableChannel;
+        return settableChannel;
     }
 
     @Override
-    public boolean setFailure(Throwable cause)
+    public ChannelPromise setFailure(Throwable cause)
     {
         if (!this.channelIsSet) {
             throw new IllegalStateException("channel not set yet !");
@@ -55,11 +57,19 @@ public class SettableChannelFuture extends DefaultChannelFuture
     }
 
     @Override
-    public boolean setSuccess()
+    public ChannelPromise setSuccess(Void result)
     {
         if (!this.channelIsSet) {
             throw new IllegalStateException("channel not set yet !");
         }
-        return super.setSuccess();
+        return super.setSuccess(result);
+    }
+
+    @Override
+    protected void checkDeadLock()
+    {
+        if (this.channelIsSet) {
+            super.checkDeadLock();
+        }
     }
 }

@@ -17,9 +17,8 @@ package com.facebook.nifty.core;
 
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 
 /**
  * Wraps incoming channel buffer into TTransport and provides a output buffer.
@@ -27,19 +26,25 @@ import org.jboss.netty.channel.Channel;
 public class TNiftyTransport extends TTransport
 {
     private final Channel channel;
-    private final ChannelBuffer in;
-    private final ThriftTransportType thriftTransportType;
-    private final ChannelBuffer out;
+    private final ThriftMessage in;
+    private final ByteBuf out;
     private static final int DEFAULT_OUTPUT_BUFFER_SIZE = 1024;
 
     public TNiftyTransport(Channel channel,
-                           ChannelBuffer in,
-                           ThriftTransportType thriftTransportType)
+                           ByteBuf in)
+    {
+        this(channel, new ThriftMessage(in, ThriftTransportType.UNKNOWN));
+    }
+
+    public TNiftyTransport(Channel channel,
+                           ThriftMessage in)
     {
         this.channel = channel;
         this.in = in;
-        this.thriftTransportType = thriftTransportType;
-        this.out = ChannelBuffers.dynamicBuffer(DEFAULT_OUTPUT_BUFFER_SIZE);
+        this.out = channel.alloc().heapBuffer(DEFAULT_OUTPUT_BUFFER_SIZE);
+
+        in.getBuffer().retain();
+        out.retain();
     }
 
     @Override
@@ -66,14 +71,14 @@ public class TNiftyTransport extends TTransport
     public int read(byte[] bytes, int offset, int length)
             throws TTransportException
     {
-        int _read = Math.min(in.readableBytes(), length);
-        in.readBytes(bytes, offset, _read);
+        int _read = Math.min(in.getBuffer().readableBytes(), length);
+        in.getBuffer().readBytes(bytes, offset, _read);
         return _read;
     }
 
     @Override
     public int readAll(byte[] bytes, int offset, int length) throws TTransportException {
-        in.readBytes(bytes, offset, length);
+        in.getBuffer().readBytes(bytes, offset, length);
         return length;
     }
 
@@ -84,13 +89,13 @@ public class TNiftyTransport extends TTransport
         out.writeBytes(bytes, offset, length);
     }
 
-    public ChannelBuffer getOutputBuffer()
+    public ByteBuf getOutputBuffer()
     {
         return out;
     }
 
     public ThriftTransportType getTransportType() {
-        return thriftTransportType;
+        return in.getTransportType();
     }
 
     @Override
@@ -99,5 +104,11 @@ public class TNiftyTransport extends TTransport
     {
         // Flush is a no-op: NiftyDispatcher will write the response to the Channel, in order to
         // guarantee ordering of responses when required.
+    }
+
+    public void release()
+    {
+        in.getBuffer().release();
+        out.release();
     }
 }

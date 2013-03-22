@@ -15,11 +15,12 @@
  */
 package com.facebook.nifty.core;
 
-import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.socket.ServerSocketChannelConfig;
-import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.ServerSocketChannelConfig;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
@@ -47,7 +48,7 @@ public class TestNettyConfigBuilder
     }
 
     @Test
-    public void testNettyConfigBuilder()
+    public void testNettyConfigBuilder() throws InterruptedException
     {
         NettyConfigBuilder configBuilder = new NettyConfigBuilder();
 
@@ -55,13 +56,19 @@ public class TestNettyConfigBuilder
         configBuilder.getServerSocketChannelConfig().setBacklog(1000);
         configBuilder.getServerSocketChannelConfig().setReuseAddress(true);
 
-        ServerBootstrap bootstrap = new ServerBootstrap(new NioServerSocketChannelFactory());
-        bootstrap.setOptions(configBuilder.getOptions());
-        bootstrap.setPipelineFactory(Channels.pipelineFactory(Channels.pipeline()));
-        Channel serverChannel = bootstrap.bind(new InetSocketAddress(port));
+        ServerBootstrap bootstrap = new ServerBootstrap();
+        configBuilder.applyConfig(bootstrap);
+        bootstrap.channel(NioServerSocketChannel.class);
+        bootstrap.group(new NioEventLoopGroup(), new NioEventLoopGroup());
+        bootstrap.childHandler(new ChannelInitializer<Channel>()
+        {
+            @Override
+            protected void initChannel(Channel ch) throws Exception {}
+        });
+        Channel serverChannel = bootstrap.bind(new InetSocketAddress(port)).sync().channel();
 
-        Assert.assertEquals(((ServerSocketChannelConfig) serverChannel.getConfig()).getReceiveBufferSize(), 10000);
-        Assert.assertEquals(((ServerSocketChannelConfig) serverChannel.getConfig()).getBacklog(), 1000);
-        Assert.assertTrue(((ServerSocketChannelConfig) serverChannel.getConfig()).isReuseAddress());
+        Assert.assertEquals(((ServerSocketChannelConfig) serverChannel.config()).getReceiveBufferSize(), 10000);
+        Assert.assertEquals(((ServerSocketChannelConfig) serverChannel.config()).getBacklog(), 1000);
+        Assert.assertTrue(((ServerSocketChannelConfig) serverChannel.config()).isReuseAddress());
     }
 }

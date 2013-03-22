@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.nifty.core;
+package com.facebook.nifty.client;
 
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.handler.timeout.IdleStateAwareChannelHandler;
-import org.jboss.netty.handler.timeout.IdleStateEvent;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelInitializer;
 
-public class IdleDisconnectHandler extends IdleStateAwareChannelHandler {
-    @Override
-    public void channelIdle(ChannelHandlerContext ctx, IdleStateEvent e) throws Exception {
-        ctx.getChannel().close();
-    }
+/**
+ * This class exists solely to make initChannel public, so that the socks bootstrap can call it
+ */
+public abstract class NiftyChannelInitializer<C extends Channel> extends ChannelInitializer<C>
+{
+    public abstract void initChannel(C ch) throws Exception;
 }

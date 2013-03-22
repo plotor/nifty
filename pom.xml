@@ -29,7 +29,7 @@ limitations under the License.
 
     <groupId>com.facebook.nifty</groupId>
     <artifactId>nifty-parent</artifactId>
-    <version>0.6.0-SNAPSHOT</version>
+    <version>0.6.0.netty4-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <modules>
@@ -45,6 +45,7 @@ limitations under the License.
         <!-- <project.build.targetJdk>1.6</project.build.targetJdk>     -->
 
         <dep.airlift.version>0.70</dep.airlift.version>
+        <dep.netty.version>4.0.0.CR1</dep.netty.version>
     </properties>
 
     <url>https://facebook.github.com/nifty</url>
@@ -108,8 +109,44 @@ limitations under the License.
 
             <dependency>
                 <groupId>io.netty</groupId>
-                <artifactId>netty</artifactId>
-                <version>3.6.2.Final</version>
+                <artifactId>netty-buffer</artifactId>
+                <version>${dep.netty.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-common</artifactId>
+                <version>${dep.netty.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-codec</artifactId>
+                <version>${dep.netty.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-codec-http</artifactId>
+                <version>${dep.netty.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-codec-socks</artifactId>
+                <version>${dep.netty.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-handler</artifactId>
+                <version>${dep.netty.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-transport</artifactId>
+                <version>${dep.netty.version}</version>
             </dependency>
 
             <dependency>

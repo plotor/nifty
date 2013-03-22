@@ -17,7 +17,7 @@ package com.facebook.nifty.client;
 
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ByteBuf;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -28,9 +28,9 @@ import javax.annotation.concurrent.NotThreadSafe;
  */
 @NotThreadSafe
 public class TChannelBufferInputTransport extends TTransport {
-    private final ChannelBuffer inputBuffer;
+    private final ByteBuf inputBuffer;
 
-    public TChannelBufferInputTransport(ChannelBuffer inputBuffer) {
+    public TChannelBufferInputTransport(ByteBuf inputBuffer) {
         this.inputBuffer = inputBuffer;
     }
 

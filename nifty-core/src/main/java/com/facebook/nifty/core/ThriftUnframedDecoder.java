@@ -15,26 +15,25 @@
  */
 package com.facebook.nifty.core;
 
+import io.netty.handler.codec.ByteToMessageDecoder;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocolUtil;
 import org.apache.thrift.protocol.TType;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.handler.codec.frame.FrameDecoder;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
 
-public class ThriftUnframedDecoder extends FrameDecoder {
+public class ThriftUnframedDecoder extends ByteToMessageDecoder
+{
     @Override
-    protected Object decode(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer)
+    protected Object decode(ChannelHandlerContext ctx, ByteBuf buffer)
             throws Exception {
         int messageBeginIndex = buffer.readerIndex();
-        ChannelBuffer messageBuffer = null;
+        ByteBuf messageBuffer = null;
 
         try
         {
-            TNiftyTransport transport = new TNiftyTransport(channel,
-                                                            buffer,
-                                                            ThriftTransportType.UNFRAMED);
+            TNiftyTransport transport = new TNiftyTransport(ctx.channel(),
+                                                            new ThriftMessage(buffer, ThriftTransportType.UNFRAMED));
             TBinaryProtocol protocol = new TBinaryProtocol(transport);
 
             protocol.readMessageBegin();
@@ -46,11 +45,9 @@ public class ThriftUnframedDecoder extends FrameDecoder {
         catch (IndexOutOfBoundsException e)
         {
             buffer.readerIndex(messageBeginIndex);
-            return null;
         }
         catch (Throwable th) {
             buffer.readerIndex(messageBeginIndex);
-            return null;
         }
 
         return messageBuffer;

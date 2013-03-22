@@ -69,6 +69,7 @@ public class DeafSelectorProvider extends SelectorProvider
         return new AbstractSelector(this) {
 
             private final Set<SelectionKey> keys = Sets.newHashSet();
+            private final Object event = new Object();
 
             @Override
             protected void implCloseSelector() throws IOException
@@ -153,19 +154,36 @@ public class DeafSelectorProvider extends SelectorProvider
             @Override
             public int select(long timeout) throws IOException
             {
-                return 0;
+                synchronized (event) {
+                    try {
+                        event.wait(timeout);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return 0;
+                }
             }
 
             @Override
             public int select() throws IOException
             {
-                return 0;
+                synchronized (event) {
+                    try {
+                        event.wait();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return 0;
+                }
             }
 
             @Override
             public Selector wakeup()
             {
-                return this;
+                synchronized (event) {
+                    event.notifyAll();
+                    return this;
+                }
             }
 
         };

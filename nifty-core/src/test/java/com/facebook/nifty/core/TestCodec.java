@@ -15,13 +15,14 @@
  */
 package com.facebook.nifty.core;
 
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import org.apache.thrift.transport.TTransport;
 import org.easymock.EasyMock;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelEvent;
-import org.jboss.netty.channel.ChannelHandlerContext;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -33,20 +34,16 @@ public class TestCodec
         NettyThriftDecoder decoder = new NettyThriftDecoder();
         ChannelHandlerContext ctx = EasyMock.createMock(ChannelHandlerContext.class);
         Channel channel = EasyMock.createMock(Channel.class);
-        EasyMock.expect(ctx.getChannel()).andReturn(channel);
-        ctx.sendUpstream(EasyMock.anyObject(ChannelEvent.class));
+        EasyMock.expect(channel.alloc()).andReturn(new PooledByteBufAllocator());
+        EasyMock.expect(ctx.channel()).andReturn(channel);
         EasyMock.replay(ctx, channel);
         try {
-            Object rand = new Object();
-            Object obj = decoder.decode(ctx, channel, rand);
-            Assert.assertEquals(rand, obj);
+            Object t = decoder.decode(ctx, Unpooled.buffer());
+            Assert.assertTrue(t == null);
 
-            Object t = decoder.decode(ctx, channel, ChannelBuffers.EMPTY_BUFFER);
-            Assert.assertTrue(t == ChannelBuffers.EMPTY_BUFFER);
-
-            ChannelBuffer channelBuffer = ChannelBuffers.dynamicBuffer();
+            ByteBuf channelBuffer = Unpooled.buffer();
             channelBuffer.writeBytes(new byte[16], 0, 16);
-            Object t1 = decoder.decode(ctx, channel, channelBuffer);
+            Object t1 = decoder.decode(ctx, channelBuffer);
             Assert.assertTrue(t1 instanceof TTransport);
         }
         catch (Exception e) {

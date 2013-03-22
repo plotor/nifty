@@ -15,30 +15,27 @@
  */
 package com.facebook.nifty.core;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.inject.Inject;
-import org.jboss.netty.channel.group.ChannelGroup;
-import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.jboss.netty.util.HashedWheelTimer;
-import org.jboss.netty.util.Timer;
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.group.ChannelGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.ArrayList;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 /**
  * A lifecycle object that manages starting up and shutting down multiple core channels.
  */
 public class NiftyBootstrap
 {
-    private final ChannelGroup allChannels;
-    private ArrayList<NettyServerTransport> transports;
-    private ExecutorService bossExecutor;
-    private ExecutorService workerExecutor;
-    private final Timer timer;
-    private NioServerSocketChannelFactory serverChannelFactory;
+    public static final int DEFAULT_IO_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 2;
+    private final ArrayList<NettyServerTransport> transports;
 
     /**
      * This takes a Set of ThriftServerDef. Use Guice Multibinder to inject.
@@ -49,42 +46,41 @@ public class NiftyBootstrap
             NettyConfigBuilder configBuilder,
             ChannelGroup allChannels)
     {
-        this.allChannels = allChannels;
         this.transports = new ArrayList<>();
-        this.timer = new HashedWheelTimer();
         for (ThriftServerDef thriftServerDef : thriftServerDefs) {
             transports.add(new NettyServerTransport(thriftServerDef,
                                                     configBuilder,
-                                                    allChannels,
-                                                    timer));
+                                                    allChannels));
         }
 
     }
 
     @PostConstruct
-    public void start()
+    public void start() throws InterruptedException
     {
-        bossExecutor = Executors.newCachedThreadPool();
-        workerExecutor = Executors.newCachedThreadPool();
-        serverChannelFactory = new NioServerSocketChannelFactory(bossExecutor, workerExecutor);
+        ThreadFactory parentThreadFactory = renamingThreadFactory("nifty-acceptor-%s");
+        ThreadFactory childThreadFactory = renamingThreadFactory("nifty-io-%s");
+
+        EventLoopGroup parentGroup = new NioEventLoopGroup(1, parentThreadFactory);
+        EventLoopGroup childGroup = new NioEventLoopGroup(DEFAULT_IO_THREAD_COUNT, childThreadFactory);
+        ServerBootstrap serverBootstrap = new ServerBootstrap().group(parentGroup, childGroup);
+        serverBootstrap.channel(NioServerSocketChannel.class);
+
         for (NettyServerTransport transport : transports) {
-            transport.start(serverChannelFactory);
+            transport.start(serverBootstrap);
         }
     }
 
     @PreDestroy
-    public void stop()
+    public void stop() throws InterruptedException
     {
         for (NettyServerTransport transport : transports) {
-            try {
-                transport.stop();
-            }
-            catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            transport.stop();
         }
+    }
 
-        ShutdownUtil.shutdownChannelFactory(serverChannelFactory, bossExecutor,
-                                            workerExecutor, allChannels);
+    private ThreadFactory renamingThreadFactory(String nameFormat)
+    {
+        return new ThreadFactoryBuilder().setNameFormat(nameFormat).build();
     }
 }

@@ -15,14 +15,13 @@
  */
 package com.facebook.nifty.client;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ExceptionEvent;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 
 public abstract class TNiftyClientAdapter implements TNiftyClientListener
 {
     @Override
-    public void onFrameRead(Channel channel, ChannelBuffer buffer)
+    public void onFrameRead(Channel channel, ByteBuf buffer)
     {
         onInput(new TNiftyReadOnlyTransport(channel, buffer));
     }
@@ -33,7 +32,7 @@ public abstract class TNiftyClientAdapter implements TNiftyClientListener
     }
 
     @Override
-    public void onExceptionEvent(ExceptionEvent e)
+    public void onExceptionEvent(Throwable cause)
     {
     }
 

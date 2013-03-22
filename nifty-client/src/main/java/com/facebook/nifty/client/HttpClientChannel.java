@@ -15,24 +15,26 @@
  */
 package com.facebook.nifty.client;
 
+import com.facebook.nifty.core.ThriftMessage;
+import com.facebook.nifty.core.ThriftTransportType;
 import com.google.common.net.HttpHeaders;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.handler.codec.http.DefaultHttpRequest;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpRequest;
-import org.jboss.netty.handler.codec.http.HttpResponse;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
-import org.jboss.netty.handler.codec.http.HttpVersion;
-import org.jboss.netty.util.Timer;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.util.Timer;
 
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Map;
 
 @NotThreadSafe
-public class HttpClientChannel extends AbstractClientChannel {
+public class HttpClientChannel extends AbstractClientChannel<FullHttpResponse> {
     private final Channel underlyingNettyChannel;
     private final String hostName;
     private Map<String, String> headerDictionary;
@@ -50,14 +52,14 @@ public class HttpClientChannel extends AbstractClientChannel {
     }
 
     @Override
-    protected int extractSequenceId(ChannelBuffer message)
+    protected int extractSequenceId(ThriftMessage message)
             throws TTransportException
     {
         try {
             int sequenceId;
             int stringLength;
-            stringLength = message.getInt(4);
-            sequenceId = message.getInt(8 + stringLength);
+            stringLength = message.getBuffer().getInt(4);
+            sequenceId = message.getBuffer().getInt(8 + stringLength);
             return sequenceId;
         } catch (Throwable t) {
             throw new TTransportException("Could not find sequenceId in Thrift message");
@@ -70,47 +72,47 @@ public class HttpClientChannel extends AbstractClientChannel {
     }
 
     @Override
-    protected ChannelBuffer extractResponse(Object message) throws TTransportException
+    public ThriftTransportType getTransportType()
     {
-        if (!(message instanceof HttpResponse)) {
+        return ThriftTransportType.HTTP;
+    }
+
+
+    @Override
+    protected ThriftMessage extractResponse(FullHttpResponse response) throws TTransportException
+    {
+        if (!response.getStatus().equals(HttpResponseStatus.OK)) {
+            throw new TTransportException("HTTP response had non-OK status: " + response.getStatus().toString());
+        }
+
+        ByteBuf content = response.data().copy();
+
+        if (!content.isReadable()) {
             return null;
         }
 
-        HttpResponse httpResponse = (HttpResponse) message;
-
-        if (!httpResponse.getStatus().equals(HttpResponseStatus.OK)) {
-            throw new TTransportException("HTTP response had non-OK status: " + httpResponse
-                    .getStatus().toString());
-        }
-
-        ChannelBuffer content = httpResponse.getContent();
-
-        if (!content.readable()) {
-            return null;
-        }
-
-        return content;
+        return new ThriftMessage(content, getTransportType());
     }
 
     @Override
-    protected ChannelFuture writeRequest(ChannelBuffer request)
+    protected ChannelFuture writeRequest(ThriftMessage request)
     {
-        HttpRequest httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST,
-                                                         endpointUri);
+        FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1,
+                                                                 HttpMethod.POST,
+                                                                 endpointUri,
+                                                                 request.getBuffer());
 
-        httpRequest.setHeader(HttpHeaders.HOST, hostName);
-        httpRequest.setHeader(HttpHeaders.CONTENT_LENGTH, request.readableBytes());
-        httpRequest.setHeader(HttpHeaders.CONTENT_TYPE, "application/x-thrift");
-        httpRequest.setHeader(HttpHeaders.ACCEPT, "application/x-thrift");
-        httpRequest.setHeader(HttpHeaders.USER_AGENT, "Java/Swift-HttpThriftClientChannel");
+        httpRequest.headers().set(HttpHeaders.HOST, hostName);
+        httpRequest.headers().set(HttpHeaders.CONTENT_LENGTH, request.getBuffer().readableBytes());
+        httpRequest.headers().set(HttpHeaders.CONTENT_TYPE, "application/x-thrift");
+        httpRequest.headers().set(HttpHeaders.ACCEPT, "application/x-thrift");
+            httpRequest.headers().set(HttpHeaders.USER_AGENT, "Java/Swift-HttpThriftClientChannel");
 
         if (headerDictionary != null) {
             for (Map.Entry<String, String> entry : headerDictionary.entrySet()) {
-                httpRequest.setHeader(entry.getKey(), entry.getValue());
+                httpRequest.headers().set(entry.getKey(), entry.getValue());
             }
         }
-
-        httpRequest.setContent(request);
 
         return underlyingNettyChannel.write(httpRequest);
     }

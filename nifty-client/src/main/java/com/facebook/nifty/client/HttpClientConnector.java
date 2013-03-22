@@ -16,13 +16,16 @@
 package com.facebook.nifty.client;
 
 import com.google.common.net.HostAndPort;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
-import org.jboss.netty.handler.codec.http.HttpClientCodec;
-import org.jboss.netty.util.Timer;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.embedded.EmbeddedByteChannel;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.ChannelPipeline;
+import io.netty.handler.codec.http.HttpClientCodec;
+import io.netty.handler.codec.http.HttpContentDecoder;
+import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.util.Timer;
 
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -75,23 +78,22 @@ public class HttpClientConnector extends AbstractClientConnector<HttpClientChann
                                       timer,
                                       endpointUri.getHost(),
                                       endpointUri.getPath());
-        channel.getNettyChannel().getPipeline().addLast("thriftHandler", channel);
+        channel.getNettyChannel().pipeline().addLast("thriftHandler", channel);
         return channel;
     }
 
     @Override
-    public ChannelPipelineFactory newChannelPipelineFactory(final int maxFrameSize)
+    public NiftyChannelInitializer<SocketChannel> newChannelInitializer(final int maxFrameSize)
     {
-        return new ChannelPipelineFactory()
+        return new NiftyChannelInitializer<SocketChannel>()
         {
             @Override
-            public ChannelPipeline getPipeline()
-                    throws Exception
+            public void initChannel(SocketChannel ch) throws Exception
             {
-                ChannelPipeline cp = Channels.pipeline();
+                ChannelPipeline cp = ch.pipeline();
                 cp.addLast("httpClientCodec", new HttpClientCodec());
-                cp.addLast("chunkAggregator", new HttpChunkAggregator(maxFrameSize));
-                return cp;
+                cp.addLast("httpContentDecoder", new HttpContentDecompressor());
+                cp.addLast("chunkAggregator", new HttpObjectAggregator(maxFrameSize));
             }
         };
     }

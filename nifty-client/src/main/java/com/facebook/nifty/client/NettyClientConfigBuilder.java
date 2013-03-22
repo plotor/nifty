@@ -18,9 +18,12 @@ package com.facebook.nifty.client;
 import com.facebook.nifty.core.NettyConfigBuilderBase;
 import com.google.common.base.Preconditions;
 import com.google.inject.Inject;
-import org.jboss.netty.channel.socket.nio.NioSocketChannelConfig;
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.socket.SocketChannelConfig;
 
 import java.lang.reflect.Proxy;
+import java.util.Map;
 
 /*
  * Hooks for configuring various parts of Netty.
@@ -31,14 +34,13 @@ public class NettyClientConfigBuilder extends NettyConfigBuilderBase
     // values to call the NioClientSocketChannelFactory constructor with a custom timer.
     private static final int DEFAULT_BOSS_THREAD_COUNT = 1;
     private static final int DEFAULT_WORKER_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 2;
-    private int bossThreadCount = DEFAULT_BOSS_THREAD_COUNT;
     private int workerThreadCount = DEFAULT_WORKER_THREAD_COUNT;
     private String name = "";
 
-    private final NioSocketChannelConfig socketChannelConfig = (NioSocketChannelConfig) Proxy.newProxyInstance(
+    private final SocketChannelConfig socketChannelConfig = (SocketChannelConfig) Proxy.newProxyInstance(
             getClass().getClassLoader(),
-            new Class<?>[]{NioSocketChannelConfig.class},
-            new Magic("")
+            new Class<?>[]{SocketChannelConfig.class},
+            new Magic()
     );
 
     @Inject
@@ -46,20 +48,9 @@ public class NettyClientConfigBuilder extends NettyConfigBuilderBase
     {
     }
 
-    public NioSocketChannelConfig getSocketChannelConfig()
+    public SocketChannelConfig getSocketChannelConfig()
     {
         return socketChannelConfig;
-    }
-
-    public NettyClientConfigBuilder setNiftyBossThreadCount(int bossThreadCount)
-    {
-        this.bossThreadCount = bossThreadCount;
-        return this;
-    }
-
-    public int getNiftyBossThreadCount()
-    {
-        return bossThreadCount;
     }
 
     public NettyClientConfigBuilder setNiftyWorkerThreadCount(int workerThreadCount)
@@ -85,4 +76,10 @@ public class NettyClientConfigBuilder extends NettyConfigBuilderBase
         return name;
     }
 
+    public void applyConfig(Bootstrap bootstrap)
+    {
+        for (Map.Entry<ChannelOption<?>, Object> entry : getSocketChannelConfig().getOptions().entrySet()) {
+            bootstrap.option((ChannelOption<Object>) entry.getKey(), entry.getValue());
+        }
+    }
 }

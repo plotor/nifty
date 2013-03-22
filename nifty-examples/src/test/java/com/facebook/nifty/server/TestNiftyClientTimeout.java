@@ -17,10 +17,12 @@ package com.facebook.nifty.server;
 
 import com.facebook.nifty.client.FramedClientChannel;
 import com.facebook.nifty.client.FramedClientConnector;
+import com.facebook.nifty.client.NettyClientConfigBuilder;
 import com.facebook.nifty.client.NiftyClient;
 import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.ListenableFuture;
 import io.airlift.units.Duration;
+import io.netty.channel.ConnectTimeoutException;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.BeforeTest;
@@ -58,12 +60,14 @@ public class TestNiftyClientTimeout
       DelegateSelectorProvider.makeUndeaf();
     }
 
-    @Test(timeOut = 2000)
+    @Test(timeOut = 5000)
     public void testSyncConnectTimeout() throws ConnectException, IOException
     {
         ServerSocket serverSocket = new ServerSocket(0);
         int port = serverSocket.getLocalPort();
-        final NiftyClient client = new NiftyClient();
+        final NettyClientConfigBuilder configBuilder = new NettyClientConfigBuilder();
+        configBuilder.setNiftyWorkerThreadCount(1);
+        final NiftyClient client = new NiftyClient(configBuilder);
         try {
                 client.connectSync(new InetSocketAddress(port),
                                    TEST_CONNECT_TIMEOUT,
@@ -78,6 +82,9 @@ public class TestNiftyClientTimeout
             Throwables.propagate(throwable);
         }
         finally {
+            // Shutting down the netty NioEventLoopGroup will wait up to 2 seconds after the last
+            // event sent to the channel (in this case, the connect attempt). So the timeout for the
+            // test must take this into account and be *at least* TEST_CONNECT_TIMEOUT + 2 seconds
             client.close();
             serverSocket.close();
         }
@@ -110,6 +117,9 @@ public class TestNiftyClientTimeout
             Throwables.propagate(throwable);
         }
         finally {
+            // Shutting down the netty NioEventLoopGroup will wait up to 2 seconds after the last
+            // event sent to the channel (in this case, the connect attempt). So the timeout for the
+            // test must take this into account and be *at least* TEST_CONNECT_TIMEOUT + 2 seconds
             client.close();
             serverSocket.close();
         }
@@ -120,8 +130,6 @@ public class TestNiftyClientTimeout
 
     private boolean isTimeoutException(Throwable throwable) {
         Throwable rootCause = Throwables.getRootCause(throwable);
-        // Look for a java.net.ConnectException, with the message "connection timed out"
-        return (rootCause instanceof ConnectException &&
-                rootCause.getMessage().compareTo("connection timed out") == 0);
+        return (rootCause instanceof ConnectTimeoutException);
     }
 }

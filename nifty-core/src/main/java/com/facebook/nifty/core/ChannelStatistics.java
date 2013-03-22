@@ -15,15 +15,20 @@
  */
 package com.facebook.nifty.core;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.ChannelEvent;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.DownstreamMessageEvent;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.SimpleChannelHandler;
-import org.jboss.netty.channel.UpstreamMessageEvent;
-import org.jboss.netty.channel.group.ChannelGroup;
+import com.google.common.base.Preconditions;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerUtil;
+import io.netty.channel.ChannelOutboundByteHandler;
+import io.netty.channel.ChannelOutboundMessageHandlerAdapter;
+import io.netty.channel.ChannelPromise;
+import io.netty.channel.ChannelStateHandler;
+import io.netty.channel.ChannelStateHandlerAdapter;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.group.ChannelGroup;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -31,7 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Counters for number of channels open, generic traffic stats and maybe cleanup logic here.
  */
-public class ChannelStatistics extends SimpleChannelHandler
+public class ChannelStatistics extends ChannelDuplexHandler implements ChannelOutboundByteHandler
 {
     // TODO : expose these stats somewhere
     private static final AtomicInteger channelCount = new AtomicInteger(0);
@@ -44,57 +49,6 @@ public class ChannelStatistics extends SimpleChannelHandler
     public ChannelStatistics(ChannelGroup allChannels)
     {
         this.allChannels = allChannels;
-    }
-
-    public void handleUpstream(ChannelHandlerContext ctx, ChannelEvent e)
-            throws Exception
-    {
-        if (e instanceof ChannelStateEvent) {
-            ChannelStateEvent cse = (ChannelStateEvent) e;
-            switch (cse.getState()) {
-                case OPEN:
-                    if (Boolean.TRUE.equals(cse.getValue())) {
-                        // connect
-                        channelCount.incrementAndGet();
-                        allChannels.add(e.getChannel());
-                    }
-                    else {
-                        // disconnect
-                        channelCount.decrementAndGet();
-                        allChannels.remove(e.getChannel());
-                    }
-                    break;
-                case BOUND:
-                    break;
-            }
-        }
-
-        if (e instanceof UpstreamMessageEvent) {
-            UpstreamMessageEvent ume = (UpstreamMessageEvent) e;
-            if (ume.getMessage() instanceof ChannelBuffer) {
-                ChannelBuffer cb = (ChannelBuffer) ume.getMessage();
-                int readableBytes = cb.readableBytes();
-                //  compute stats here, bytes read from remote
-                bytesRead.getAndAdd(readableBytes);
-            }
-        }
-
-        ctx.sendUpstream(e);
-    }
-
-    public void handleDownstream(ChannelHandlerContext ctx, ChannelEvent e)
-            throws Exception
-    {
-        if (e instanceof DownstreamMessageEvent) {
-            DownstreamMessageEvent dme = (DownstreamMessageEvent) e;
-            if (dme.getMessage() instanceof ChannelBuffer) {
-                ChannelBuffer cb = (ChannelBuffer) dme.getMessage();
-                int readableBytes = cb.readableBytes();
-                // compute stats here, bytes written to remote
-                bytesWritten.getAndAdd(readableBytes);
-            }
-        }
-        ctx.sendDownstream(e);
     }
 
     public static int getChannelCount()
@@ -113,11 +67,55 @@ public class ChannelStatistics extends SimpleChannelHandler
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
-            throws Exception
+    public void channelActive(final ChannelHandlerContext ctx) throws Exception
     {
+        Preconditions.checkState(!allChannels.contains(ctx.channel()));
+
+        // connect
+        channelCount.incrementAndGet();
+        allChannels.add(ctx.channel());
+        super.channelActive(ctx);
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception
+    {
+        // disconnect
+        channelCount.decrementAndGet();
+        allChannels.remove(ctx.channel());
+        super.channelInactive(ctx);
+    }
+
+    @Override
+    public void inboundBufferUpdated(ChannelHandlerContext ctx) throws Exception
+    {
+        bytesRead.getAndAdd(ctx.nextInboundByteBuffer().readableBytes());
+        ctx.fireInboundBufferUpdated();
+    }
+
+    @Override
+    public void flush(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception
+    {
+        bytesWritten.getAndAdd(ctx.outboundByteBuffer().readableBytes());
+        ctx.nextOutboundByteBuffer().writeBytes(ctx.outboundByteBuffer());
+        ctx.flush(promise);
+    }
+
+    @Override
+    public ByteBuf newOutboundBuffer(ChannelHandlerContext ctx) throws Exception
+    {
+        return ChannelHandlerUtil.allocate(ctx);
+    }
+
+    @Override
+    public void freeOutboundBuffer(ChannelHandlerContext ctx) throws Exception
+    {
+        ctx.outboundByteBuffer().release();
+    }
+
+    @Override
+    public void discardOutboundReadBytes(ChannelHandlerContext ctx) throws Exception
+    {
+        ctx.outboundByteBuffer().discardSomeReadBytes();
     }
 }
-
-
-

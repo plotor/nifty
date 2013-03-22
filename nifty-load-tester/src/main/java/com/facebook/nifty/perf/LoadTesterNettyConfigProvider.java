@@ -21,13 +21,17 @@ import org.jboss.netty.channel.socket.ServerSocketChannelConfig;
 import org.jboss.netty.channel.socket.nio.NioSocketChannelConfig;
 
 public class LoadTesterNettyConfigProvider implements Provider<NettyConfigBuilder> {
-    public LoadTesterNettyConfigProvider() {
-    }
-
     @Override
     public NettyConfigBuilder get() {
         NettyConfigBuilder configBuilder = new NettyConfigBuilder();
+
+        // Some load test client configurations make a *lot* of connections all at once at startup
         configBuilder.getServerSocketChannelConfig().setBacklog(1024);
+
+        // Fastest write throughput is achieved by re-enabling Nagle's algorithm (which is
+        // off by default in Netty 4)
+        configBuilder.getSocketChannelConfig().setTcpNoDelay(false);
+
         return configBuilder;
     }
 }

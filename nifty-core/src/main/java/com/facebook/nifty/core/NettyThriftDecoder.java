@@ -15,35 +15,28 @@
  */
 package com.facebook.nifty.core;
 
-import org.apache.thrift.protocol.TMessageType;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.ByteToMessageDecoder;
 import org.apache.thrift.transport.TTransport;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.handler.codec.oneone.OneToOneDecoder;
 
 /**
- * Converts ChannelBuffer into TNiftyTransport.
+ * Converts ByteBuf into TNiftyTransport.
  */
-public class NettyThriftDecoder extends OneToOneDecoder
+public class NettyThriftDecoder extends ByteToMessageDecoder
 {
     @Override
-    protected Object decode(ChannelHandlerContext ctx, Channel channel, Object msg)
+    protected Object decode(ChannelHandlerContext ctx, ByteBuf msg)
             throws Exception
     {
-        if (!(msg instanceof ChannelBuffer)) {
-            return msg;
+        if (msg.readableBytes() > 0) {
+            return getTransport(ctx.channel(), msg);
         }
-        else {
-            ChannelBuffer cb = (ChannelBuffer) msg;
-            if (cb.readableBytes() > 0) {
-                return getTransport(channel, cb);
-            }
-        }
-        return msg;
+        return null;
     }
 
-    protected TTransport getTransport(Channel channel, ChannelBuffer cb)
+    protected TTransport getTransport(Channel channel, ByteBuf cb)
     {
         ThriftTransportType type = (cb.getUnsignedByte(0) < 0x80) ?
                 ThriftTransportType.FRAMED :
@@ -51,6 +44,6 @@ public class NettyThriftDecoder extends OneToOneDecoder
         if (type == ThriftTransportType.FRAMED) {
             cb.skipBytes(4);
         }
-        return new TNiftyTransport(channel, cb, type);
+        return new TNiftyTransport(channel, new ThriftMessage(cb, type));
     }
 }

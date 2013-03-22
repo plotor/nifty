@@ -15,26 +15,24 @@
  */
 package com.facebook.nifty.client;
 
+import com.facebook.nifty.core.ThriftMessage;
 import io.airlift.units.Duration;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundMessageHandlerAdapter;
+import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.timeout.ReadTimeoutException;
+import io.netty.handler.timeout.WriteTimeoutException;
+import io.netty.util.Timeout;
+import io.netty.util.Timer;
+import io.netty.util.TimerTask;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelHandler;
-import org.jboss.netty.channel.socket.nio.NioSocketChannel;
-import org.jboss.netty.handler.timeout.ReadTimeoutException;
-import org.jboss.netty.handler.timeout.WriteTimeoutException;
-import org.jboss.netty.util.Timeout;
-import org.jboss.netty.util.Timer;
-import org.jboss.netty.util.TimerTask;
 
 import javax.annotation.concurrent.NotThreadSafe;
+import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -42,8 +40,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @NotThreadSafe
-public abstract class AbstractClientChannel extends SimpleChannelHandler implements
-        NiftyClientChannel {
+public abstract class AbstractClientChannel<ResponseType>
+        extends ChannelInboundMessageHandlerAdapter<ResponseType>
+        implements NiftyClientChannel {
     private final Channel nettyChannel;
     private Duration sendTimeout = null;
     private Duration requestTimeout = null;
@@ -61,12 +60,18 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
         return nettyChannel;
     }
 
-    protected abstract ChannelBuffer extractResponse(Object message) throws TTransportException;
+    @Override
+    public SocketAddress getRemoteAddress()
+    {
+        return nettyChannel.remoteAddress();
+    }
 
-    protected abstract int extractSequenceId(ChannelBuffer message)
+    protected abstract ThriftMessage extractResponse(ResponseType message) throws TTransportException;
+
+    protected abstract int extractSequenceId(ThriftMessage message)
             throws TTransportException;
 
-    protected abstract ChannelFuture writeRequest(ChannelBuffer request);
+    protected abstract ChannelFuture writeRequest(ThriftMessage request);
 
     public void close()
     {
@@ -113,7 +118,7 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
     public void executeInIoThread(Runnable runnable)
     {
         NioSocketChannel nioSocketChannel = (NioSocketChannel) getNettyChannel();
-        nioSocketChannel.getWorker().executeInIoThread(runnable, true);
+        nioSocketChannel.eventLoop().execute(runnable);
     }
 
     private boolean hasRequestTimeout()
@@ -122,7 +127,7 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
     }
 
     @Override
-    public void sendAsynchronousRequest(final ChannelBuffer message,
+    public void sendAsynchronousRequest(final ThriftMessage message,
                                         final boolean oneway,
                                         final Listener listener)
             throws TException
@@ -156,7 +161,7 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
                         } else {
                             TTransportException transportException =
                                     new TTransportException("Sending request failed",
-                                                            future.getCause());
+                                                            future.cause());
                             listener.onChannelError(transportException);
                             onError(transportException);
                         }
@@ -167,18 +172,11 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
     }
 
     @Override
-    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e)
+    public void messageReceived(ChannelHandlerContext ctx, ResponseType response)
     {
         try {
-            ChannelBuffer response = extractResponse(e.getMessage());
-
-            if (response != null) {
-                int sequenceId = extractSequenceId(response);
-                onResponseReceived(sequenceId, response);
-            }
-            else {
-                ctx.sendUpstream(e);
-            }
+            int sequenceId = extractSequenceId(extractResponse(response));
+            onResponseReceived(sequenceId, extractResponse(response));
         }
         catch (Throwable t) {
             onError(t);
@@ -186,11 +184,10 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent event)
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable t)
             throws Exception
     {
-        Throwable t = event.getCause();
-        ctx.getChannel().close();
+        ctx.channel().close();
         onError(t);
     }
 
@@ -228,7 +225,7 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
         }
     }
 
-    private void onResponseReceived(int sequenceId, ChannelBuffer response)
+    private void onResponseReceived(int sequenceId, ThriftMessage response)
     {
         Request request = retireRequest(sequenceId);
         if (request == null) {
@@ -271,11 +268,8 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
 
         if (!expiredTimeout.isCancelled()) {
             cancelAllTimeouts();
-            WriteTimeoutException timeoutException =
-                    new WriteTimeoutException(
-                            "Timed out waiting " + getSendTimeout() + " to send request");
-
-            request.getListener().onChannelError(new TTransportException(timeoutException));
+            String message = "Timed out waiting " + getSendTimeout() + " to send request";
+            request.getListener().onChannelError(new TTransportException(message, WriteTimeoutException.INSTANCE));
         }
     }
 
@@ -286,11 +280,8 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
         if (!expiredTimeout.isCancelled()) {
             cancelAllTimeouts();
 
-            ReadTimeoutException timeoutException =
-                    new ReadTimeoutException(
-                            "Timed out waiting " + getReceiveTimeout() + " to receive response");
-
-            request.getListener().onChannelError(new TTransportException(timeoutException));
+            String message = "Timed out waiting " + getReceiveTimeout() + " to receive response";
+            request.getListener().onChannelError(new TTransportException(message, ReadTimeoutException.INSTANCE));
         }
     }
 
@@ -359,7 +350,7 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
                     try {
                         timerTask.run(timeout);
                     } catch (Exception e) {
-                        Channels.fireExceptionCaught(channel.getNettyChannel(), e);
+                        channel.getNettyChannel().pipeline().fireExceptionCaught(e);
                     }
                 }
             });

@@ -15,14 +15,14 @@
  */
 package com.facebook.nifty.client;
 
+import com.facebook.nifty.core.ThriftMessage;
+import com.facebook.nifty.core.ThriftTransportType;
 import io.airlift.units.Duration;
 import org.apache.thrift.TException;
-import org.jboss.netty.bootstrap.ClientBootstrap;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.util.Timer;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+
+import java.net.SocketAddress;
 
 public interface NiftyClientChannel {
     /**
@@ -35,7 +35,7 @@ public interface NiftyClientChannel {
      * @param oneway
      *@param listener  @throws TException
      */
-    void sendAsynchronousRequest(final ChannelBuffer request,
+    void sendAsynchronousRequest(final ThriftMessage request,
                                  final boolean oneway,
                                  final Listener listener)
             throws TException;
@@ -102,10 +102,14 @@ public interface NiftyClientChannel {
 
     Channel getNettyChannel();
 
+    SocketAddress getRemoteAddress();
+
+    ThriftTransportType getTransportType();
+
     public interface Listener {
         public abstract void onRequestSent();
 
-        public abstract void onResponseReceived(ChannelBuffer message);
+        public abstract void onResponseReceived(ThriftMessage message);
 
         public abstract void onChannelError(TException t);
     }

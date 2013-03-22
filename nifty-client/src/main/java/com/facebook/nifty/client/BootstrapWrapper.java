@@ -16,16 +16,39 @@
 package com.facebook.nifty.client;
 
 import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.util.Timer;
 
-public interface NiftyClientConnector<T extends NiftyClientChannel> {
-    ChannelFuture connect(BootstrapWrapper bootstrap);
+import java.net.SocketAddress;
 
-    T newThriftClientChannel(Channel channel, Timer timer);
+public class BootstrapWrapper
+{
+    private final Bootstrap wrappedBootstrap;
 
-    NiftyChannelInitializer<SocketChannel> newChannelInitializer(int maxFrameSize);
+    public BootstrapWrapper(Bootstrap wrappedBootstrap)
+    {
+        this.wrappedBootstrap = wrappedBootstrap;
+    }
+
+    public Bootstrap getWrappedBootstrap()
+    {
+        return wrappedBootstrap;
+    }
+
+    public ChannelFuture connect(SocketAddress remoteAddress)
+    {
+        return wrappedBootstrap.connect(remoteAddress);
+    }
+
+    public <T> void option(ChannelOption<T> option, T value)
+    {
+        this.getWrappedBootstrap().option(option, value);
+    }
+
+    public void handler(NiftyChannelInitializer<SocketChannel> initializationHandler)
+    {
+        this.getWrappedBootstrap().handler(initializationHandler);
+    }
 }

@@ -15,20 +15,16 @@
  */
 package com.facebook.nifty.client;
 
+import io.netty.buffer.MessageBuf;
+import io.netty.channel.ChannelInboundMessageHandler;
+import io.netty.channel.ChannelInboundMessageHandlerAdapter;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelDownstreamHandler;
-import org.jboss.netty.channel.ChannelEvent;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.ChannelUpstreamHandler;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.MessageEvent;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
 
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Queue;
@@ -38,20 +34,28 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * This already has a built in TFramedTransport. No need to wrap.
  */
 @NotThreadSafe
-public class TNiftyAsyncClientTransport extends TTransport
-        implements ChannelUpstreamHandler, ChannelDownstreamHandler
+public class TNiftyAsyncClientTransport extends TTransport implements ChannelInboundMessageHandler<ByteBuf>
 {
     private static final int DEFAULT_BUFFER_SIZE = 1024;
     // this is largely a guess. there shouldn't really be more than 2 write buffers at any given time.
     private static final int MAX_BUFFERS_IN_QUEUE = 3;
     private final Channel channel;
-    private final Queue<ChannelBuffer> writeBuffers;
+    private final Queue<ByteBuf> writeBuffers;
     private volatile TNiftyClientListener listener;
+    private final ChannelInboundMessageHandlerAdapter<ByteBuf> delegate =
+            new ChannelInboundMessageHandlerAdapter<ByteBuf>()
+            {
+                @Override
+                public void messageReceived(ChannelHandlerContext ctx, ByteBuf msg) throws Exception
+                {
+                    TNiftyAsyncClientTransport.this.messageReceived(ctx, msg);
+                }
+            };
 
     public TNiftyAsyncClientTransport(Channel channel)
     {
         this.channel = channel;
-        this.writeBuffers = new ConcurrentLinkedQueue<ChannelBuffer>();
+        this.writeBuffers = new ConcurrentLinkedQueue<>();
     }
 
     public void setListener(TNiftyClientListener listener)
@@ -101,77 +105,112 @@ public class TNiftyAsyncClientTransport extends TTransport
         // which is an async operation in netty. the future listener
         // down here will be invoked by Netty I/O thread.
         if (!writeBuffers.isEmpty()) {
-            final ChannelBuffer channelBuffer = writeBuffers.remove();
-            channel.write(channelBuffer).addListener(
-                    new ChannelFutureListener()
-                    {
-                        @Override
-                        public void operationComplete(ChannelFuture future)
-                                throws Exception
-                        {
-                            if (future.isSuccess()) {
-                                channelBuffer.clear();
-                                if (writeBuffers.size() < MAX_BUFFERS_IN_QUEUE) {
-                                    writeBuffers.add(channelBuffer);
-                                }
-                            }
-                        }
-                    }
-            );
+            channel.write(writeBuffers.remove());
         }
     }
 
-    @Override
-    public void handleUpstream(ChannelHandlerContext ctx, ChannelEvent e)
-            throws Exception
+    public ByteBuf getWriteBuffer()
     {
-        if (e instanceof MessageEvent) {
-            messageReceived(ctx, (MessageEvent) e);
-        }
-        else if (e instanceof ChannelStateEvent) {
-            ChannelStateEvent evt = (ChannelStateEvent) e;
-            switch (evt.getState()) {
-                case OPEN:
-                    if (Boolean.FALSE.equals(evt.getValue())) {
-                        listener.onChannelClosedOrDisconnected(ctx.getChannel());
-                    }
-                    break;
-                case CONNECTED:
-                    if (evt.getValue() == null) {
-                        listener.onChannelClosedOrDisconnected(ctx.getChannel());
-                    }
-                    break;
-                default:
-                    break;
-            }
-        }
-        else if (e instanceof ExceptionEvent) {
-            listener.onExceptionEvent((ExceptionEvent) e);
-        }
-        ctx.sendUpstream(e);
-        // for all other stuff we drop it on the floor
-    }
-
-    private void messageReceived(ChannelHandlerContext ctx, MessageEvent e)
-    {
-        if (e.getMessage() instanceof ChannelBuffer && listener != null) {
-            listener.onFrameRead(ctx.getChannel(), (ChannelBuffer) e.getMessage());
-        }
-        // drop it
-    }
-
-    @Override
-    public void handleDownstream(ChannelHandlerContext ctx, ChannelEvent e)
-            throws Exception
-    {
-        ctx.sendDownstream(e);
-    }
-
-    public ChannelBuffer getWriteBuffer()
-    {
-        if (writeBuffers.isEmpty()) {
-            writeBuffers.add(ChannelBuffers.dynamicBuffer(DEFAULT_BUFFER_SIZE));
+        if (writeBuffers.isEmpty())
+        {
+            writeBuffers.add(channel.alloc().buffer(DEFAULT_BUFFER_SIZE));
         }
         return writeBuffers.peek();
+    }
+
+    /// delegation methods with added functionality
+
+    private void messageReceived(ChannelHandlerContext ctx, ByteBuf in)
+            throws Exception
+    {
+        listener.onFrameRead(ctx.channel(), in);
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception
+    {
+        listener.onChannelClosedOrDisconnected(ctx.channel());
+        delegate.channelInactive(ctx);
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception
+    {
+        listener.onExceptionEvent(cause);
+        delegate.exceptionCaught(ctx, cause);
+    }
+
+    /// delegation-only methods
+
+    @Override
+    public MessageBuf<ByteBuf> newInboundBuffer(ChannelHandlerContext ctx) throws Exception
+    {
+        return delegate.newInboundBuffer(ctx);
+    }
+
+    @Override
+    public void freeInboundBuffer(ChannelHandlerContext ctx) throws Exception
+    {
+        delegate.freeInboundBuffer(ctx);
+    }
+
+    @Override
+    public void inboundBufferUpdated(ChannelHandlerContext ctx) throws Exception
+    {
+        delegate.inboundBufferUpdated(ctx);
+    }
+
+    @Override
+    public void channelRegistered(ChannelHandlerContext ctx) throws Exception
+    {
+        delegate.channelRegistered(ctx);
+    }
+
+    @Override
+    public void channelUnregistered(ChannelHandlerContext ctx) throws Exception
+    {
+        delegate.channelUnregistered(ctx);
+    }
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception
+    {
+        delegate.channelActive(ctx);
+    }
+
+    @Override
+    public void channelReadSuspended(ChannelHandlerContext ctx) throws Exception
+    {
+        delegate.channelReadSuspended(ctx);
+    }
+
+    @Override
+    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception
+    {
+        delegate.userEventTriggered(ctx, evt);
+    }
+
+    @Override
+    public void beforeAdd(ChannelHandlerContext ctx) throws Exception
+    {
+        delegate.beforeAdd(ctx);
+    }
+
+    @Override
+    public void afterAdd(ChannelHandlerContext ctx) throws Exception
+    {
+        delegate.afterAdd(ctx);
+    }
+
+    @Override
+    public void beforeRemove(ChannelHandlerContext ctx) throws Exception
+    {
+        delegate.beforeRemove(ctx);
+    }
+
+    @Override
+    public void afterRemove(ChannelHandlerContext ctx) throws Exception
+    {
+        delegate.afterRemove(ctx);
     }
 }

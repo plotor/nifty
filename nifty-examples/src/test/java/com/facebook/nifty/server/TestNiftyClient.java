@@ -15,6 +15,7 @@
  */
 package com.facebook.nifty.server;
 
+import com.facebook.nifty.client.NettyClientConfigBuilder;
 import com.facebook.nifty.client.NiftyClient;
 import com.facebook.nifty.core.NiftyBootstrap;
 import com.facebook.nifty.core.ThriftServerDefBuilder;
@@ -24,8 +25,11 @@ import com.facebook.nifty.test.ResultCode;
 import com.facebook.nifty.test.scribe;
 import com.google.inject.Guice;
 import com.google.inject.Stage;
+import io.airlift.units.Duration;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.transport.TFramedTransport;
+import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransportException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +43,8 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.util.Arrays;
 import java.util.List;
+
+import static org.testng.Assert.assertEquals;
 
 public class TestNiftyClient
 {
@@ -57,12 +63,30 @@ public class TestNiftyClient
     }
 
     @AfterMethod(alwaysRun = true)
-    public void tearDown()
+    public void tearDown() throws InterruptedException
     {
         if (bootstrap != null)
         {
             bootstrap.stop();
         }
+    }
+
+    @Test
+    public void testClient() throws InterruptedException, TException
+    {
+        startServer();
+        final NiftyClient niftyClient = new NiftyClient();
+        scribe.Client client = makeNiftyClient(niftyClient);
+
+        LogEntry entry = new LogEntry("TestLog", "Test message from plain framed client");
+        ResultCode code = client.Log(Arrays.asList(entry));
+
+        assertEquals(code, ResultCode.OK);
+
+        client.getOutputProtocol().getTransport().close();
+        niftyClient.close();
+
+        bootstrap.stop();
     }
 
     @Test
@@ -104,7 +128,7 @@ public class TestNiftyClient
         niftyClient.close();
     }
 
-    private void startServer()
+    private void startServer() throws InterruptedException
     {
         bootstrap = Guice.createInjector(
                 Stage.PRODUCTION,
@@ -139,7 +163,12 @@ public class TestNiftyClient
             throws TTransportException, InterruptedException
     {
         InetSocketAddress address = new InetSocketAddress("localhost", port);
-        TBinaryProtocol tp = new TBinaryProtocol(niftyClient.connectSync(address));
+        TBinaryProtocol tp = new TBinaryProtocol(
+                niftyClient.connectSync(address,
+                                        Duration.valueOf("100s"),
+                                        Duration.valueOf("100s"),
+                                        Duration.valueOf("100s"),
+                                        10000));
         return new scribe.Client(tp);
     }
 }

@@ -13,22 +13,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.nifty.client;
+package com.facebook.nifty.core;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.Channel;
 
-public interface TNiftyClientListener
+public class ThriftMessage
 {
-    /**
-     * Called when a full frame as defined in TFramedTransport is available.
-     *
-     * @param channel the channel
-     * @param buffer the payload of the frame, without the leading 4-bytes length header
-     */
-    void onFrameRead(Channel channel, ByteBuf buffer);
+    private final ByteBuf buffer;
+    private final ThriftTransportType transportType;
 
-    void onChannelClosedOrDisconnected(Channel channel);
+    public ThriftMessage(ByteBuf buffer, ThriftTransportType transportType)
+    {
+        this.buffer = buffer;
+        this.transportType = transportType;
+    }
 
-    void onExceptionEvent(Throwable t);
+    public ByteBuf getBuffer()
+    {
+        return buffer;
+    }
+
+    public ThriftTransportType getTransportType()
+    {
+        return transportType;
+    }
 }

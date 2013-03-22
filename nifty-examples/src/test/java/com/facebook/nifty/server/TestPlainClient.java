@@ -39,6 +39,8 @@ import java.net.ServerSocket;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.testng.Assert.assertEquals;
+
 public class TestPlainClient {
     private NiftyBootstrap bootstrap;
     private static Logger log = LoggerFactory.getLogger(TestPlainClient.class);
@@ -70,13 +72,16 @@ public class TestPlainClient {
         scribe.Client client = new scribe.Client(protocol);
 
         LogEntry entry = new LogEntry("TestLog", "Test message from plain framed client");
-        client.Log(Arrays.asList(entry));
+        ResultCode code = client.Log(Arrays.asList(entry));
+
+        assertEquals(code, ResultCode.OK);
 
         socket.close();
     }
 
     @BeforeSuite
-    public void startNiftyServer() throws IOException {
+    public void startNiftyServer() throws IOException, InterruptedException
+    {
         ServerSocket s = new ServerSocket();
         s.bind(new InetSocketAddress(0));
         port = s.getLocalPort();
@@ -109,7 +114,8 @@ public class TestPlainClient {
     }
 
     @AfterSuite
-    private void stopNiftyServer() {
+    private void stopNiftyServer() throws InterruptedException
+    {
         bootstrap.stop();
     }
 }

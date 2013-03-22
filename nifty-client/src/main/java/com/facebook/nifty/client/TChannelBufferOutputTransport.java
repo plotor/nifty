@@ -15,10 +15,11 @@
  */
 package com.facebook.nifty.client;
 
+import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
+import io.netty.buffer.ByteBuf;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -28,7 +29,7 @@ import javax.annotation.concurrent.NotThreadSafe;
  */
 @NotThreadSafe
 public class TChannelBufferOutputTransport extends TTransport {
-    private final ChannelBuffer outputBuffer = ChannelBuffers.dynamicBuffer(1024);
+    private final ByteBuf outputBuffer = PooledByteBufAllocator.DEFAULT.heapBuffer(1024);
 
     @Override
     public boolean isOpen() {
@@ -55,7 +56,7 @@ public class TChannelBufferOutputTransport extends TTransport {
         outputBuffer.writeBytes(buf, off, len);
     }
 
-    public ChannelBuffer getOutputBuffer() {
+    public ByteBuf getOutputBuffer() {
         return outputBuffer;
     }
 }

@@ -76,7 +76,12 @@ public class Plain
             @Override
             public void run()
             {
-                bootstrap.stop();
+                try {
+                    bootstrap.stop();
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
         });
     }

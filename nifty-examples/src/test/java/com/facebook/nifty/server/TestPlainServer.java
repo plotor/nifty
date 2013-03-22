@@ -126,12 +126,13 @@ public class TestPlainServer
     }
 
 
-    private void startServer()
+    private void startServer() throws InterruptedException
     {
         startServer(getThriftServerDefBuilder());
     }
 
     private void startServer(final ThriftServerDefBuilder thriftServerDefBuilder)
+            throws InterruptedException
     {
         bootstrap = Guice.createInjector(Stage.PRODUCTION, new NiftyModule() {
             @Override

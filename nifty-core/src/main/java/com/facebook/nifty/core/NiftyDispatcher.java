@@ -15,18 +15,15 @@
  */
 package com.facebook.nifty.core;
 
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelInboundMessageHandlerAdapter;
+import io.netty.util.AttributeKey;
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessorFactory;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,7 +40,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * sends the requests in order. (Eventually this will be conditional on a flag in the thrift
  * message header for future async clients that can handle out-of-order responses).
  */
-public class NiftyDispatcher extends SimpleChannelUpstreamHandler
+public class NiftyDispatcher extends ChannelInboundMessageHandlerAdapter<TNiftyTransport>
+
 {
     private static final Logger log = LoggerFactory.getLogger(NiftyDispatcher.class);
 
@@ -52,7 +50,7 @@ public class NiftyDispatcher extends SimpleChannelUpstreamHandler
     private final TProtocolFactory outProtocolFactory;
     private final Executor exe;
     private final int queuedResponseLimit;
-    private final Map<Integer, ChannelBuffer> responseMap = new HashMap<Integer, ChannelBuffer>();
+    private final Map<Integer, ByteBuf> responseMap = new HashMap<>();
     private final AtomicInteger dispatcherSequenceId = new AtomicInteger(0);
     private final AtomicInteger lastResponseWrittenId = new AtomicInteger(0);
 
@@ -66,16 +64,10 @@ public class NiftyDispatcher extends SimpleChannelUpstreamHandler
     }
 
     @Override
-    public void messageReceived(ChannelHandlerContext ctx, final MessageEvent e)
+    public void messageReceived(ChannelHandlerContext ctx, final TNiftyTransport messageTransport)
             throws Exception
     {
-        if (e.getMessage() instanceof TNiftyTransport) {
-            TNiftyTransport messageTransport = (TNiftyTransport) e.getMessage();
-            processRequest(ctx, messageTransport);
-        }
-        else {
-            ctx.sendUpstream(e);
-        }
+        processRequest(ctx, messageTransport);
     }
 
     private void processRequest(final ChannelHandlerContext ctx, final TNiftyTransport messageTransport) {
@@ -111,8 +103,8 @@ public class NiftyDispatcher extends SimpleChannelUpstreamHandler
                             outProtocol
                     );
                     writeResponse(ctx, messageTransport, requestSequenceId);
-                }
-                catch (TException e1) {
+                    messageTransport.release();
+                } catch (TException e1) {
                     log.error("Exception while invoking!", e1);
                     closeChannel(ctx);
                 }
@@ -127,7 +119,7 @@ public class NiftyDispatcher extends SimpleChannelUpstreamHandler
         // Ensure responses to requests are written in the same order the requests
         // were received.
         synchronized (responseMap) {
-            ChannelBuffer response = messageTransport.getOutputBuffer();
+            ByteBuf response = messageTransport.getOutputBuffer();
             ThriftTransportType transportType = messageTransport.getTransportType();
             int currentResponseId = lastResponseWrittenId.get() + 1;
             if (responseSequenceId != currentResponseId) {
@@ -139,12 +131,18 @@ public class NiftyDispatcher extends SimpleChannelUpstreamHandler
                 // This response was next in line, write this response now, and see if
                 // there are others next in line that should be sent now as well.
                 do {
-                    response = addFraming(response, transportType);
-                    Channels.write(ctx.getChannel(), response);
+                    if (response.isReadable()) {
+                        response = addFraming(ctx, response, transportType);
+                        //ctx.nextOutboundByteBuffer().writeBytes(response);
+                        ctx.channel().write(response);
+                        //response.release();
+                    }
                     lastResponseWrittenId.incrementAndGet();
                     ++currentResponseId;
                     response = responseMap.remove(currentResponseId);
                 } while (null != response);
+
+                ctx.channel().flush();
 
                 // Now that we've written some responses, check if reads should be unblocked
                 if (isChannelReadBlocked(ctx)) {
@@ -157,14 +155,21 @@ public class NiftyDispatcher extends SimpleChannelUpstreamHandler
         }
     }
 
-    private ChannelBuffer addFraming(ChannelBuffer response, ThriftTransportType transportType) {
+    private ByteBuf addFraming(ChannelHandlerContext ctx,
+                               ByteBuf response,
+                               ThriftTransportType transportType) {
+        if (!response.isReadable()) {
+            // Empty response from one-way message, don't frame it
+            return response;
+        }
+
         if (transportType == ThriftTransportType.UNFRAMED) {
             return response;
         }
         else if (transportType == ThriftTransportType.FRAMED) {
-            ChannelBuffer frameSizeBuffer = ChannelBuffers.buffer(4);
+            ByteBuf frameSizeBuffer = ctx.alloc().buffer(4);
             frameSizeBuffer.writeInt(response.readableBytes());
-            return ChannelBuffers.wrappedBuffer(frameSizeBuffer, response);
+            return Unpooled.wrappedBuffer(frameSizeBuffer, response);
         }
         else {
             throw new UnsupportedOperationException("Header protocol is not supported");
@@ -172,17 +177,17 @@ public class NiftyDispatcher extends SimpleChannelUpstreamHandler
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
-            throws Exception
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception
     {
         // Any out of band exception are caught here and we tear down the socket
-        closeChannel(ctx);
+        ctx.close();
+        super.exceptionCaught(ctx, cause);
     }
 
     private void closeChannel(ChannelHandlerContext ctx)
     {
-        if (ctx.getChannel().isOpen()) {
-            ctx.getChannel().close();
+        if (ctx.channel().isOpen()) {
+            ctx.channel().close();
         }
     }
 
@@ -191,20 +196,23 @@ public class NiftyDispatcher extends SimpleChannelUpstreamHandler
         BLOCKED,
     }
 
+    private static final AttributeKey<ReadBlockedState> READ_BLOCKED_STATE_KEY = new AttributeKey<>
+            ("ReadBlockedState");
+
     @Override
-    public void channelOpen(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
-        // Reads always start out unblocked
-        ctx.setAttachment(ReadBlockedState.NOT_BLOCKED);
-        super.channelOpen(ctx, e);
+    public void channelActive(ChannelHandlerContext ctx) throws Exception
+    {
+        ctx.attr(READ_BLOCKED_STATE_KEY).set(ReadBlockedState.NOT_BLOCKED);
+        super.channelActive(ctx);
     }
 
     private boolean isChannelReadBlocked(ChannelHandlerContext ctx) {
-        return ctx.getAttachment() == ReadBlockedState.BLOCKED;
+        return ctx.attr(READ_BLOCKED_STATE_KEY).get() == ReadBlockedState.BLOCKED;
     }
 
     private void blockChannelReads(ChannelHandlerContext ctx) {
         // Remember that reads are blocked (there is no Channel.getReadable())
-        ctx.setAttachment(ReadBlockedState.BLOCKED);
+        ctx.attr(READ_BLOCKED_STATE_KEY).set(ReadBlockedState.BLOCKED);
 
         // NOTE: this shuts down reads, but isn't a 100% guarantee we won't get any more messages.
         // It sets up the channel so that the polling loop will not report any new read events
@@ -212,12 +220,12 @@ public class NiftyDispatcher extends SimpleChannelUpstreamHandler
         // from the socket before this ran may still be decoded and arrive at this handler. Thus
         // the limit on queued messages before we block reads is more of a guidance than a hard
         // limit.
-        ctx.getChannel().setReadable(false);
+        ctx.channel().config().setAutoRead(false);
     }
 
     private void unblockChannelReads(ChannelHandlerContext ctx) {
         // Remember that reads are unblocked (there is no Channel.getReadable())
-        ctx.setAttachment(ReadBlockedState.NOT_BLOCKED);
-        ctx.getChannel().setReadable(true);
+        ctx.attr(READ_BLOCKED_STATE_KEY).set(ReadBlockedState.NOT_BLOCKED);
+        ctx.channel().config().setAutoRead(true);
     }
 }

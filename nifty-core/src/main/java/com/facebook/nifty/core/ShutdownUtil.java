@@ -15,8 +15,8 @@
  */
 package com.facebook.nifty.core;
 
-import org.jboss.netty.channel.ChannelFactory;
-import org.jboss.netty.channel.group.ChannelGroup;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.group.ChannelGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,37 +26,6 @@ import java.util.concurrent.TimeUnit;
 public class ShutdownUtil
 {
     private static final Logger log = LoggerFactory.getLogger(ShutdownUtil.class);
-
-    public static void shutdownChannelFactory(ChannelFactory channelFactory,
-                                              ExecutorService bossExecutor,
-                                              ExecutorService workerExecutor,
-                                              ChannelGroup allChannels)
-    {
-        // Close all channels
-        if (allChannels != null) {
-            closeChannels(allChannels);
-        }
-
-        // Shutdown the channel factory
-        if (channelFactory != null) {
-            channelFactory.shutdown();
-        }
-
-        // Stop boss threads
-        if (bossExecutor != null) {
-            shutdownExecutor(bossExecutor, "bossExecutor");
-        }
-
-        // Finally stop I/O workers
-        if (workerExecutor != null) {
-            shutdownExecutor(workerExecutor, "workerExecutor");
-        }
-
-        // Release any other resources netty might be holding onto via this channelFactory
-        if (channelFactory != null) {
-            channelFactory.releaseExternalResources();
-        }
-    }
 
     public static void closeChannels(ChannelGroup allChannels)
     {
@@ -82,6 +51,21 @@ public class ShutdownUtil
         try {
             log.info("Waiting for {} to shutdown", name);
             if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                log.warn("{} did not shutdown properly", name);
+            }
+        }
+        catch (InterruptedException e) {
+            log.warn("Interrupted while waiting for {} to shutdown", name);
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public static void shutdownEventLoopGroup(EventLoopGroup eventLoopGroup, String name)
+    {
+        eventLoopGroup.shutdown();
+        try {
+            log.info("Waiting for {} to shutdown", name);
+            if (!eventLoopGroup.awaitTermination(5, TimeUnit.SECONDS)) {
                 log.warn("{} did not shutdown properly", name);
             }
         }

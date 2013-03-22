@@ -16,33 +16,40 @@
 package com.facebook.nifty.core;
 
 import com.google.inject.Inject;
-import org.jboss.netty.channel.socket.ServerSocketChannelConfig;
-import org.jboss.netty.channel.socket.nio.NioSocketChannelConfig;
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.channel.ChannelConfig;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.socket.ServerSocketChannelConfig;
+import io.netty.channel.socket.SocketChannelConfig;
 
 import java.lang.reflect.Proxy;
+import java.util.Map;
 
 /*
  * Hooks for configuring various parts of Netty.
  */
 public class NettyConfigBuilder extends NettyConfigBuilderBase
 {
-
-    private final NioSocketChannelConfig socketChannelConfig = (NioSocketChannelConfig) Proxy.newProxyInstance(
+    private final SocketChannelConfig socketChannelConfig = (SocketChannelConfig) Proxy.newProxyInstance(
             getClass().getClassLoader(),
-            new Class<?>[]{NioSocketChannelConfig.class},
-            new Magic("child.")
-    );
+            new Class<?>[]{SocketChannelConfig.class},
+            new Magic());
     private final ServerSocketChannelConfig serverSocketChannelConfig = (ServerSocketChannelConfig) Proxy.newProxyInstance(
             getClass().getClassLoader(),
             new Class<?>[]{ServerSocketChannelConfig.class},
-            new Magic(""));
+            new Magic());
 
     @Inject
     public NettyConfigBuilder()
     {
+        // configuration defaults
+        socketChannelConfig.setAllocator(PooledByteBufAllocator.DEFAULT);
+        socketChannelConfig.setDefaultHandlerByteBufType(ChannelConfig.ChannelHandlerByteBufType
+                                                                 .HEAP);
     }
 
-    public NioSocketChannelConfig getSocketChannelConfig()
+    public SocketChannelConfig getSocketChannelConfig()
     {
         return socketChannelConfig;
     }
@@ -50,5 +57,16 @@ public class NettyConfigBuilder extends NettyConfigBuilderBase
     public ServerSocketChannelConfig getServerSocketChannelConfig()
     {
         return serverSocketChannelConfig;
+    }
+
+    public void applyConfig(ServerBootstrap bootstrap)
+    {
+        for (Map.Entry<ChannelOption<?>, Object> entry : getServerSocketChannelConfig().getOptions().entrySet()) {
+            bootstrap.option((ChannelOption<Object>) entry.getKey(), entry.getValue());
+        }
+
+        for (Map.Entry<ChannelOption<?>, Object> entry : getSocketChannelConfig().getOptions().entrySet()) {
+            bootstrap.childOption((ChannelOption<Object>) entry.getKey(), entry.getValue());
+        }
     }
 }
