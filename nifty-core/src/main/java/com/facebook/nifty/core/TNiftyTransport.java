@@ -31,6 +31,9 @@ public class TNiftyTransport extends TTransport
     private final ThriftTransportType thriftTransportType;
     private final ChannelBuffer out;
     private static final int DEFAULT_OUTPUT_BUFFER_SIZE = 1024;
+    private int bufferPosition;
+    private int bufferRemaining;
+    private int bytesConsumed;
 
     public TNiftyTransport(Channel channel,
                            ChannelBuffer in,
@@ -40,6 +43,13 @@ public class TNiftyTransport extends TTransport
         this.in = in;
         this.thriftTransportType = thriftTransportType;
         this.out = ChannelBuffers.dynamicBuffer(DEFAULT_OUTPUT_BUFFER_SIZE);
+
+        if (in.hasArray()) {
+            this.bufferPosition = in.arrayOffset();
+            this.bufferRemaining = in.readableBytes();
+            // Tell the ChannelBuffer we want to consume all of its readable bytes
+            in.readerIndex(in.writerIndex());
+        }
     }
 
     public TNiftyTransport(Channel channel, ThriftMessage message)
@@ -71,14 +81,30 @@ public class TNiftyTransport extends TTransport
     public int read(byte[] bytes, int offset, int length)
             throws TTransportException
     {
+        if (getBytesRemainingInBuffer() > 0) {
+            int _read = Math.min(getBytesRemainingInBuffer(), length);
+            System.arraycopy(getBuffer(), getBufferPosition(), bytes, offset, _read);
+            consumeBuffer(_read);
+            return _read;
+        }
+
         int _read = Math.min(in.readableBytes(), length);
         in.readBytes(bytes, offset, _read);
+        bytesConsumed += length;
         return _read;
     }
 
     @Override
     public int readAll(byte[] bytes, int offset, int length) throws TTransportException {
+        if (getBytesRemainingInBuffer() > 0) {
+            int _read = Math.min(getBytesRemainingInBuffer(), length);
+            System.arraycopy(getBuffer(), getBufferPosition(), bytes, offset, _read);
+            consumeBuffer(_read);
+            return _read;
+        }
+
         in.readBytes(bytes, offset, length);
+        bytesConsumed += length;
         return length;
     }
 
@@ -87,6 +113,30 @@ public class TNiftyTransport extends TTransport
             throws TTransportException
     {
         out.writeBytes(bytes, offset, length);
+    }
+
+    @Override
+    public byte[] getBuffer() {
+        return (bufferRemaining == 0) ? null : in.array();
+    }
+
+    @Override
+    public int getBytesRemainingInBuffer() {
+        return bufferRemaining;
+    }
+
+    @Override
+    public int getBufferPosition()
+    {
+        return bufferPosition;
+    }
+
+    @Override
+    public void consumeBuffer(int len)
+    {
+        bufferRemaining -= len;
+        bufferPosition += len;
+        bytesConsumed += len;
     }
 
     public ChannelBuffer getOutputBuffer()
@@ -104,5 +154,10 @@ public class TNiftyTransport extends TTransport
     {
         // Flush is a no-op: NiftyDispatcher will write the response to the Channel, in order to
         // guarantee ordering of responses when required.
+    }
+
+    public int getBytesConsumed()
+    {
+        return bytesConsumed;
     }
 }

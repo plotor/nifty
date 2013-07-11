@@ -24,6 +24,9 @@ import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.protocol.TProtocolUtil;
 import org.apache.thrift.protocol.TType;
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.CompositeChannelBuffer;
+import org.jboss.netty.buffer.HeapChannelBuffer;
+import org.jboss.netty.buffer.SlicedChannelBuffer;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.Channels;
@@ -145,12 +148,12 @@ public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
             TProtocolUtil.skip(inputProtocol, TType.STRUCT);
             inputProtocol.readMessageEnd();
 
-            messageLength = buffer.readerIndex() - messageStartReaderIndex;
+            messageLength = decodeAttemptTransport.getBytesConsumed();
         } catch (IndexOutOfBoundsException e) {
             // No complete message was decoded: ran out of bytes
             return null;
         } finally {
-            if (buffer.readerIndex() - messageStartReaderIndex > maxFrameSize) {
+            if (messageLength > maxFrameSize) {
                 Channels.fireExceptionCaught(
                         ctx,
                         new TooLongFrameException("Maximum frame size of " + maxFrameSize + " exceeded")
@@ -173,8 +176,14 @@ public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
 
     protected ChannelBuffer extractFrame(ChannelBuffer buffer, int index, int length)
     {
-        // Slice should be sufficient here (and avoids the copy in LengthFieldBasedFrameDecoder)
-        // because we know no one is going to modify the contents in the read buffers.
-        return buffer.slice(index, length);
+        if (buffer instanceof HeapChannelBuffer) {
+            // A slice of a HeapChannelBuffer is just another HeapChannelBuffer, so it's
+            // very cheap to access
+            return buffer.slice(index, length);
+        }
+        else {
+            // Otherwise make a copy, which should be a HeapChannelBuffer
+            return buffer.copy(index, length);
+        }
     }
 }
