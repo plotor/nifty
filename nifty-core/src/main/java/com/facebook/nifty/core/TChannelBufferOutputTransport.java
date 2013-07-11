@@ -58,4 +58,9 @@ public class TChannelBufferOutputTransport extends TTransport {
     public ChannelBuffer getOutputBuffer() {
         return outputBuffer;
     }
+
+    public void reset() {
+        outputBuffer.readerIndex(0);
+        outputBuffer.writerIndex(0);
+    }
 }

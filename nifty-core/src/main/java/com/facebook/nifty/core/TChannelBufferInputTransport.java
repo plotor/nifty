@@ -28,9 +28,17 @@ import javax.annotation.concurrent.NotThreadSafe;
  */
 @NotThreadSafe
 public class TChannelBufferInputTransport extends TTransport {
-    private final ChannelBuffer inputBuffer;
+    private ChannelBuffer inputBuffer;
+
+    public TChannelBufferInputTransport() {
+        this.inputBuffer = null;
+    }
 
     public TChannelBufferInputTransport(ChannelBuffer inputBuffer) {
+        this.inputBuffer = inputBuffer;
+    }
+
+    public void reset(ChannelBuffer inputBuffer) {
         this.inputBuffer = inputBuffer;
     }
 
