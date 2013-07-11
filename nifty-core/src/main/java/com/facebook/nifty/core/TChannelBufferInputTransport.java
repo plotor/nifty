@@ -21,6 +21,10 @@ import org.jboss.netty.buffer.ChannelBuffer;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
+
 /**
  * Implementation of {@link TTransport} that wraps an incoming message received so that a
  * {@link org.apache.thrift.protocol.TProtocol} can * be constructed around the wrapper to read
@@ -28,7 +32,11 @@ import javax.annotation.concurrent.NotThreadSafe;
  */
 @NotThreadSafe
 public class TChannelBufferInputTransport extends TTransport {
-    private final ChannelBuffer inputBuffer;
+    private ChannelBuffer inputBuffer;
+
+    public TChannelBufferInputTransport() {
+        this.inputBuffer = null;
+    }
 
     public TChannelBufferInputTransport(ChannelBuffer inputBuffer) {
         this.inputBuffer = inputBuffer;
@@ -51,6 +59,7 @@ public class TChannelBufferInputTransport extends TTransport {
 
     @Override
     public int read(byte[] buf, int off, int len) throws TTransportException {
+        checkState(inputBuffer != null, "Tried to read before setting an input buffer");
         inputBuffer.readBytes(buf, off, len);
         return len;
     }
@@ -58,5 +67,9 @@ public class TChannelBufferInputTransport extends TTransport {
     @Override
     public void write(byte[] buf, int off, int len) throws TTransportException {
         throw new UnsupportedOperationException();
+    }
+
+    public void setInputBuffer(ChannelBuffer inputBuffer) {
+        this.inputBuffer = inputBuffer;
     }
 }

@@ -27,35 +27,97 @@ import javax.annotation.concurrent.NotThreadSafe;
  * so that an async client can grab the buffer and send it
  */
 @NotThreadSafe
-public class TChannelBufferOutputTransport extends TTransport {
-    private final ChannelBuffer outputBuffer = ChannelBuffers.dynamicBuffer(1024);
+public class TChannelBufferOutputTransport extends TTransport
+{
+    private static final int DEFAULT_INITIAL_SIZE = 1024;
+
+    // This ratio defines "underuse" of the allocated buffer. For example if this ratio is 0.75,
+    // flushing a message whose length is less than 3/4 of the buffer will count as under-utilized.
+    private static final float UNDERUSE_RATIO = 0.75f;
+
+    // This threshold sets how many times the buffer must be under-utilized before we'll reallocate
+    // it to the initial size.
+    private static final int UNDERUSE_THRESHOLD = 5;
+
+    private ChannelBuffer outputBuffer;
+    private final int initialSize;
+    private int bufferUnderuseCounter;
+
+    public TChannelBufferOutputTransport()
+    {
+        this.initialSize = DEFAULT_INITIAL_SIZE;
+        outputBuffer = ChannelBuffers.dynamicBuffer(this.initialSize);
+    }
+
+    public TChannelBufferOutputTransport(int initialSize)
+    {
+        this.initialSize = initialSize;
+        outputBuffer = ChannelBuffers.dynamicBuffer(this.initialSize);
+    }
 
     @Override
-    public boolean isOpen() {
+    public boolean isOpen()
+    {
         return true;
     }
 
     @Override
-    public void open() throws TTransportException {
+    public void open() throws TTransportException
+    {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void close() {
+    public void close()
+    {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public int read(byte[] buf, int off, int len) throws TTransportException {
+    public int read(byte[] buf, int off, int len) throws TTransportException
+    {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void write(byte[] buf, int off, int len) throws TTransportException {
+    public void write(byte[] buf, int off, int len) throws TTransportException
+    {
         outputBuffer.writeBytes(buf, off, len);
     }
 
-    public ChannelBuffer getOutputBuffer() {
+    @Override
+    public void flush()
+    {
+        if (outputBuffer.writerIndex() < (int)(outputBuffer.capacity() * UNDERUSE_RATIO)) {
+            ++bufferUnderuseCounter;
+        }
+        else {
+            bufferUnderuseCounter = 0;
+        }
+        resetOutputBuffer();
+    }
+
+    public void resetOutputBuffer()
+    {
+        if (shouldShrinkBuffer()) {
+            outputBuffer = ChannelBuffers.dynamicBuffer(initialSize);
+            bufferUnderuseCounter = 0;
+        } else {
+            outputBuffer.clear();
+        }
+    }
+
+    public ChannelBuffer getOutputBuffer()
+    {
         return outputBuffer;
+    }
+
+    private boolean shouldShrinkBuffer()
+    {
+        // We want to shrink the buffer if it has been under-utilized UNDERUSE_THRESHOLD
+        // times in a row, and the size after shrinking (the initial size defined for this
+        // transport) is less than UNDERUSE_RATIO of the current size.
+        return (bufferUnderuseCounter > UNDERUSE_THRESHOLD) &&
+               (initialSize < (int)(outputBuffer.capacity() * UNDERUSE_RATIO));
     }
 }
