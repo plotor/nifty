@@ -49,7 +49,6 @@ public class NiftyClient implements Closeable
 {
     public static final Duration DEFAULT_CONNECT_TIMEOUT = new Duration(2, TimeUnit.SECONDS);
     public static final Duration DEFAULT_RECEIVE_TIMEOUT = new Duration(2, TimeUnit.SECONDS);
-    public static final Duration DEFAULT_READ_TIMEOUT = new Duration(2, TimeUnit.SECONDS);
     private static final Duration DEFAULT_SEND_TIMEOUT = new Duration(2, TimeUnit.SECONDS);
 
     private static final int DEFAULT_MAX_FRAME_SIZE = 16777216;
@@ -94,7 +93,6 @@ public class NiftyClient implements Closeable
         return connectAsync(clientChannelConnector,
                             DEFAULT_CONNECT_TIMEOUT,
                             DEFAULT_RECEIVE_TIMEOUT,
-                            DEFAULT_READ_TIMEOUT,
                             DEFAULT_SEND_TIMEOUT,
                             DEFAULT_MAX_FRAME_SIZE,
                             defaultSocksProxyAddress);
@@ -105,68 +103,25 @@ public class NiftyClient implements Closeable
         return defaultSocksProxyAddress;
     }
 
-    /**
-     * @deprecated Use {@link NiftyClient#connectAsync(NiftyClientConnector, Duration, Duration, Duration, Duration, int)}.
-     */
-    @Deprecated
-    public <T extends NiftyClientChannel> ListenableFuture<T> connectAsync(
-            NiftyClientConnector<T> clientChannelConnector,
-            @Nullable Duration connectTimeout,
-            @Nullable Duration receiveTimeout,
-            @Nullable Duration sendTimeout,
-            int maxFrameSize)
-    {
-        return connectAsync(clientChannelConnector,
-                            connectTimeout,
-                            receiveTimeout,
-                            receiveTimeout,
-                            sendTimeout,
-                            maxFrameSize);
-    }
-
     public <T extends NiftyClientChannel> ListenableFuture<T> connectAsync(
         NiftyClientConnector<T> clientChannelConnector,
         @Nullable Duration connectTimeout,
         @Nullable Duration receiveTimeout,
-        @Nullable Duration readTimeout,
         @Nullable Duration sendTimeout,
         int maxFrameSize)
     {
         return connectAsync(clientChannelConnector,
                             connectTimeout,
                             receiveTimeout,
-                            readTimeout,
                             sendTimeout,
                             maxFrameSize,
                             defaultSocksProxyAddress);
     }
 
-    /**
-     * @deprecated Use {@link NiftyClient#connectAsync(NiftyClientConnector, Duration, Duration, Duration, Duration, int, com.google.common.net.HostAndPort)}.
-     */
-    @Deprecated
     public <T extends NiftyClientChannel> ListenableFuture<T> connectAsync(
             NiftyClientConnector<T> clientChannelConnector,
             @Nullable Duration connectTimeout,
             @Nullable Duration receiveTimeout,
-            @Nullable Duration sendTimeout,
-            int maxFrameSize,
-            @Nullable HostAndPort socksProxyAddress)
-    {
-        return connectAsync(clientChannelConnector,
-                            connectTimeout,
-                            receiveTimeout,
-                            receiveTimeout,
-                            sendTimeout,
-                            maxFrameSize,
-                            socksProxyAddress);
-    }
-
-    public <T extends NiftyClientChannel> ListenableFuture<T> connectAsync(
-            NiftyClientConnector<T> clientChannelConnector,
-            @Nullable Duration connectTimeout,
-            @Nullable Duration receiveTimeout,
-            @Nullable Duration readTimeout,
             @Nullable Duration sendTimeout,
             int maxFrameSize,
             @Nullable HostAndPort socksProxyAddress)
@@ -193,7 +148,6 @@ public class NiftyClient implements Closeable
         });
         return new TNiftyFuture<>(clientChannelConnector,
                                   receiveTimeout,
-                                  readTimeout,
                                   sendTimeout,
                                   nettyChannelFuture);
     }
@@ -208,7 +162,6 @@ public class NiftyClient implements Closeable
                 clientChannelConnector,
                 DEFAULT_CONNECT_TIMEOUT,
                 DEFAULT_RECEIVE_TIMEOUT,
-                DEFAULT_READ_TIMEOUT,
                 DEFAULT_SEND_TIMEOUT,
                 DEFAULT_MAX_FRAME_SIZE,
                 defaultSocksProxyAddress);
@@ -219,7 +172,6 @@ public class NiftyClient implements Closeable
             NiftyClientConnector<T> clientChannelConnector,
             @Nullable Duration connectTimeout,
             @Nullable Duration receiveTimeout,
-            @Nullable Duration readTimeout,
             @Nullable Duration sendTimeout,
             int maxFrameSize)
             throws TTransportException, InterruptedException
@@ -229,7 +181,6 @@ public class NiftyClient implements Closeable
                 clientChannelConnector,
                 connectTimeout,
                 receiveTimeout,
-                readTimeout,
                 sendTimeout,
                 maxFrameSize,
                 null);
@@ -240,7 +191,6 @@ public class NiftyClient implements Closeable
             NiftyClientConnector<T> clientChannelConnector,
             @Nullable Duration connectTimeout,
             @Nullable Duration receiveTimeout,
-            @Nullable Duration readTimeout,
             @Nullable Duration sendTimeout,
             int maxFrameSize,
             @Nullable HostAndPort socksProxyAddress)
@@ -252,7 +202,6 @@ public class NiftyClient implements Closeable
                             clientChannelConnector,
                             connectTimeout,
                             receiveTimeout,
-                            readTimeout,
                             sendTimeout,
                             maxFrameSize,
                             socksProxyAddress).get();
@@ -378,7 +327,6 @@ public class NiftyClient implements Closeable
     {
         private TNiftyFuture(final NiftyClientConnector<T> clientChannelConnector,
                              @Nullable final Duration receiveTimeout,
-                             @Nullable final Duration readTimeout,
                              @Nullable final Duration sendTimeout,
                              final ChannelFuture channelFuture)
         {
@@ -394,7 +342,6 @@ public class NiftyClient implements Closeable
                             T channel = clientChannelConnector.newThriftClientChannel(nettyChannel,
                                                                                       nettyClientConfig);
                             channel.setReceiveTimeout(receiveTimeout);
-                            channel.setReadTimeout(readTimeout);
                             channel.setSendTimeout(sendTimeout);
                             set(channel);
                         }
