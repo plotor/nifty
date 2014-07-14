@@ -22,7 +22,7 @@
     <parent>
         <groupId>com.facebook</groupId>
         <artifactId>facebook-oss-pom</artifactId>
-        <version>11</version>
+        <version>12-SNAPSHOT</version>
     </parent>
 
     <groupId>com.facebook.nifty</groupId>
