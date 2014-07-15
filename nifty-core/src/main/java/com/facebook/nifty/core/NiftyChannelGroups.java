@@ -15,22 +15,10 @@
  */
 package com.facebook.nifty.core;
 
-import io.netty.channel.Channel;
-import io.netty.util.AttributeKey;
+import io.netty.channel.local.LocalEventLoopGroup;
+import io.netty.util.concurrent.EventExecutor;
 
-import javax.management.Attribute;
-
-public class ConnectionContexts
+public class NiftyChannelGroups
 {
-    private static final AttributeKey<ConnectionContext> CONNECTION_CONTEXT = AttributeKey.valueOf("Thrift.ConnectionContext");
-
-    public static ConnectionContext createContext(Channel channel) {
-        NiftyConnectionContext context = new NiftyConnectionContext();
-        channel.attr(CONNECTION_CONTEXT).set(context);
-        return context;
-    }
-
-    public static ConnectionContext getContext(Channel channel) {
-        return channel.attr(CONNECTION_CONTEXT).get();
-    }
+    public static final EventExecutor CHANNEL_GROUP_EVENT_EXECUTOR = new LocalEventLoopGroup(1).next();
 }

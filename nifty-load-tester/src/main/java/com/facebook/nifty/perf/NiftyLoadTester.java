@@ -34,8 +34,8 @@ import io.airlift.configuration.ConfigurationLoader;
 import io.airlift.configuration.ConfigurationModule;
 import io.airlift.configuration.ConfigurationValidator;
 import io.airlift.configuration.ValidationErrorModule;
-import org.jboss.netty.logging.InternalLoggerFactory;
-import org.jboss.netty.logging.Slf4JLoggerFactory;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

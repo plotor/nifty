@@ -16,17 +16,21 @@
 package com.facebook.nifty.guice;
 
 import com.facebook.nifty.core.NettyServerConfig;
+import com.facebook.nifty.core.NiftyChannelGroups;
 import com.facebook.nifty.core.ThriftServerDef;
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.google.inject.TypeLiteral;
 import com.google.inject.multibindings.Multibinder;
 import com.google.inject.util.Providers;
-import org.jboss.netty.channel.group.ChannelGroup;
-import org.jboss.netty.channel.group.DefaultChannelGroup;
+import io.netty.channel.group.ChannelGroup;
+import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
 
 import javax.inject.Provider;
 import javax.inject.Singleton;
+
+import static com.facebook.nifty.core.NiftyChannelGroups.CHANNEL_GROUP_EVENT_EXECUTOR;
 
 public abstract class NiftyModule extends AbstractModule
 {
@@ -42,7 +46,8 @@ public abstract class NiftyModule extends AbstractModule
     @Singleton
     public ChannelGroup getChannelGroup()
     {
-        return new DefaultChannelGroup();
+        // TODO(NETTY4): is this okay?
+        return new DefaultChannelGroup(CHANNEL_GROUP_EVENT_EXECUTOR);
     }
 
     public NiftyModule useDefaultNettyServerConfig()

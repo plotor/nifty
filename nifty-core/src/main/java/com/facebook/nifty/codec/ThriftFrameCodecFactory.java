@@ -16,9 +16,8 @@
 package com.facebook.nifty.codec;
 
 import org.apache.thrift.protocol.TProtocolFactory;
-import org.jboss.netty.channel.ChannelHandler;
 
 public interface ThriftFrameCodecFactory
 {
-    public ChannelHandler create(int maxFrameSize, TProtocolFactory defaultProtocolFactory);
+    public ThriftFrameCodec create(int maxFrameSize, TProtocolFactory defaultProtocolFactory);
 }

@@ -15,16 +15,22 @@
  */
 package com.facebook.nifty.client;
 
-
-import com.facebook.nifty.core.NiftyChannelInitializer;
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.nio.NioEventLoopGroup;
 
+import java.net.SocketAddress;
+import java.util.Map;
 
-public interface NiftyClientConnector<T extends RequestChannel> {
-    ChannelFuture connect(ClientBootstrap bootstrap);
+public interface ClientBootstrap
+{
+    ClientBootstrap setOption(String option, Object value);
 
-    T newThriftClientChannel(Channel channel, NettyClientConfig clientConfig);
+    ClientBootstrap setOptions(Map<String, Object> options);
 
-    NiftyChannelInitializer<Channel> newChannelInitializer(int maxFrameSize, NettyClientConfig clientConfig);
+    ClientBootstrap handler(ChannelHandler handler);
+
+    ClientBootstrap group(NioEventLoopGroup group);
+
+    ChannelFuture connect(SocketAddress address);
 }

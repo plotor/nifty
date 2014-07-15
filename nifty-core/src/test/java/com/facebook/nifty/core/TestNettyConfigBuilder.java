@@ -15,11 +15,13 @@
  */
 package com.facebook.nifty.core;
 
-import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.socket.ServerSocketChannelConfig;
-import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ServerChannel;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.ServerSocketChannelConfig;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
@@ -27,41 +29,42 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.util.concurrent.ExecutionException;
 
 public class TestNettyConfigBuilder
 {
-    private int port;
-
-    @BeforeTest(alwaysRun = true)
-    public void setup()
-    {
-        try {
-            ServerSocket s = new ServerSocket();
-            s.bind(new InetSocketAddress(0));
-            port = s.getLocalPort();
-            s.close();
-        }
-        catch (IOException e) {
-            port = 8080;
-        }
-    }
-
     @Test
-    public void testNettyConfigBuilder()
+    public void testNettyConfigBuilder() throws Exception
     {
-        NettyServerConfigBuilder configBuilder = new NettyServerConfigBuilder();
+        final NettyServerConfigBuilder configBuilder = new NettyServerConfigBuilder();
 
         configBuilder.getServerSocketChannelConfig().setReceiveBufferSize(10000);
         configBuilder.getServerSocketChannelConfig().setBacklog(1000);
         configBuilder.getServerSocketChannelConfig().setReuseAddress(true);
 
-        ServerBootstrap bootstrap = new ServerBootstrap(new NioServerSocketChannelFactory());
-        bootstrap.setOptions(configBuilder.getBootstrapOptions());
-        bootstrap.setPipelineFactory(Channels.pipelineFactory(Channels.pipeline()));
-        Channel serverChannel = bootstrap.bind(new InetSocketAddress(port));
+        NettyServerConfig config = configBuilder.build();
 
-        Assert.assertEquals(((ServerSocketChannelConfig) serverChannel.getConfig()).getReceiveBufferSize(), 10000);
-        Assert.assertEquals(((ServerSocketChannelConfig) serverChannel.getConfig()).getBacklog(), 1000);
-        Assert.assertTrue(((ServerSocketChannelConfig) serverChannel.getConfig()).isReuseAddress());
+        Channel serverChannel = null;
+
+        try {
+            final ServerBootstrap bootstrap = new ServerBootstrap();
+            bootstrap.channel(NioServerSocketChannel.class);
+            ChannelFuture serverChannelFuture = bootstrap.group(new NioEventLoopGroup(1))
+                                                         .handler(NiftyChannelInitializers.getOptionsInitializer(config.getChannelOptions()))
+                                                         .childHandler(NiftyChannelInitializers.getOptionsInitializer(config.getChildChannelOptions()))
+                                                         .bind(new InetSocketAddress(0));
+
+            serverChannelFuture.get();
+            serverChannel = serverChannelFuture.channel();
+
+            Assert.assertEquals(((ServerSocketChannelConfig) serverChannel.config()).getReceiveBufferSize(), 10000);
+            Assert.assertEquals(((ServerSocketChannelConfig) serverChannel.config()).getBacklog(), 1000);
+            Assert.assertTrue(((ServerSocketChannelConfig) serverChannel.config()).isReuseAddress());
+        }
+        finally {
+            if (serverChannel != null) {
+                serverChannel.close();
+            }
+        }
     }
 }

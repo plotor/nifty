@@ -16,19 +16,18 @@
 package com.facebook.nifty.client;
 
 import com.facebook.nifty.core.NiftySecurityHandlers;
-import org.jboss.netty.channel.ChannelHandler;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.SimpleChannelHandler;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 
 public class NiftyNoOpClientSecurityFactory implements NiftyClientSecurityFactory
 {
-    static final ChannelHandler noOpHandler = new SimpleChannelHandler() {
+    static final ChannelHandler noOpHandler = new ChannelInboundHandlerAdapter() {
         @Override
-        public void channelOpen(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception
+        public void channelActive(ChannelHandlerContext ctx) throws Exception
         {
-            super.channelOpen(ctx, e);
-            ctx.getPipeline().remove(this);
+            super.channelActive(ctx);
+            ctx.pipeline().remove(this);
         }
     };
 

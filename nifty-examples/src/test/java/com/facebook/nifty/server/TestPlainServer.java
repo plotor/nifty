@@ -28,12 +28,13 @@ import com.facebook.nifty.test.LogEntry;
 import com.facebook.nifty.test.ResultCode;
 import com.facebook.nifty.test.scribe;
 import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.google.inject.Guice;
 import com.google.inject.Provider;
 import com.google.inject.Stage;
 import io.airlift.units.Duration;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.thrift.TApplicationException;
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
@@ -43,8 +44,6 @@ import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.logging.InternalLoggerFactory;
-import org.jboss.netty.logging.Slf4JLoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.annotations.AfterMethod;
@@ -58,7 +57,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -250,12 +248,12 @@ public class TestPlainServer
     }
 
 
-    private void startServer()
+    private void startServer() throws InterruptedException
     {
         startServer(getThriftServerDefBuilder());
     }
 
-    private void startServer(final ThriftServerDefBuilder thriftServerDefBuilder)
+    private void startServer(final ThriftServerDefBuilder thriftServerDefBuilder) throws InterruptedException
     {
         bootstrap = Guice.createInjector(
                 Stage.PRODUCTION,

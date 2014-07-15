@@ -25,14 +25,15 @@ import java.net.InetSocketAddress;
 public class ScopedNiftyServer implements AutoCloseable {
     private final NettyServerTransport server;
 
-    public ScopedNiftyServer(ThriftServerDefBuilder defBuilder) {
+    public ScopedNiftyServer(ThriftServerDefBuilder defBuilder) throws InterruptedException
+    {
         server = new NettyServerTransport(defBuilder.build());
         server.start();
     }
 
     public int getPort() {
         InetSocketAddress localAddress = (InetSocketAddress)server.getServerChannel()
-                                                                  .getLocalAddress();
+                                                                  .localAddress();
         return localAddress.getPort();
     }
 

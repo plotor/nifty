@@ -15,33 +15,32 @@
  */
 package com.facebook.nifty.core;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TMessage;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TTransport;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 import org.testng.annotations.Test;
 
 import java.nio.ByteBuffer;
 
 import static org.testng.Assert.assertEquals;
 
-public class TestNiftyTransport
+public class TestByteBufTransports
 {
     @Test
     public void testReadByteCounter() throws TException
     {
-        ChannelBuffer firstChunk = writeFirstChunk(new TChannelBufferOutputTransport()).getOutputBuffer();
+        ByteBuf firstChunk = writeFirstChunk(new ByteBufOutputTransport()).getOutputBuffer();
         int firstChunkSize = firstChunk.readableBytes();
 
-        ChannelBuffer secondChunk = writeSecondChunk(new TChannelBufferOutputTransport()).getOutputBuffer();
+        ByteBuf secondChunk = writeSecondChunk(new ByteBufOutputTransport()).getOutputBuffer();
         int secondChunkSize = secondChunk.readableBytes();
 
-        TNiftyTransport inputTransport = new TNiftyTransport(null,
-                                                             ChannelBuffers.wrappedBuffer(firstChunk, secondChunk),
-                                                             ThriftTransportType.UNFRAMED);
+        ByteBuf buf = Unpooled.wrappedBuffer(firstChunk, secondChunk);
+        ByteBufInputTransport inputTransport = new ByteBufInputTransport(buf);
         TBinaryProtocol inputProtocol = new TBinaryProtocol(inputTransport);
         assertEquals(inputTransport.getReadByteCount(), 0, "No bytes should have been read yet");
 
@@ -55,13 +54,13 @@ public class TestNiftyTransport
     @Test
     public void testWriteByteCounter() throws TException
     {
-        ChannelBuffer firstChunk = writeFirstChunk(new TChannelBufferOutputTransport()).getOutputBuffer();
+        ByteBuf firstChunk = writeFirstChunk(new ByteBufOutputTransport()).getOutputBuffer();
         int firstChunkSize = firstChunk.readableBytes();
 
-        ChannelBuffer secondChunk = writeSecondChunk(new TChannelBufferOutputTransport()).getOutputBuffer();
+        ByteBuf secondChunk = writeSecondChunk(new ByteBufOutputTransport()).getOutputBuffer();
         int secondChunkSize = secondChunk.readableBytes();
 
-        TNiftyTransport outputTransport = new TNiftyTransport(null, ChannelBuffers.buffer(0), ThriftTransportType.UNFRAMED);
+        ByteBufOutputTransport outputTransport = new ByteBufOutputTransport();
 
         writeFirstChunk(outputTransport);
         assertEquals(outputTransport.getWrittenByteCount(), firstChunkSize);

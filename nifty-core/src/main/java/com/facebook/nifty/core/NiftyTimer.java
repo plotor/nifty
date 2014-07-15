@@ -16,9 +16,7 @@
 package com.facebook.nifty.core;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import org.jboss.netty.util.HashedWheelTimer;
-import org.jboss.netty.util.ThreadNameDeterminer;
+import io.netty.util.HashedWheelTimer;
 
 import javax.annotation.PreDestroy;
 
@@ -32,7 +30,8 @@ public final class NiftyTimer
     public NiftyTimer(String prefix, long tickDuration, TimeUnit unit, int ticksPerWheel)
     {
         super(new ThreadFactoryBuilder().setNameFormat(prefix + "-timer-%s").setDaemon(true).build(),
-              ThreadNameDeterminer.CURRENT,
+              // TODO(NETTY4): see if this just works w/o the extra param
+              //ThreadNameDeterminer.CURRENT,
               tickDuration,
               unit,
               ticksPerWheel);

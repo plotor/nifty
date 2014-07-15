@@ -16,12 +16,11 @@
 package com.facebook.nifty.codec;
 
 import org.apache.thrift.protocol.TProtocolFactory;
-import org.jboss.netty.channel.ChannelHandler;
 
 public class DefaultThriftFrameCodecFactory implements ThriftFrameCodecFactory
 {
     @Override
-    public ChannelHandler create(int maxFrameSize, TProtocolFactory defaultProtocolFactory)
+    public DefaultThriftFrameCodec create(int maxFrameSize, TProtocolFactory defaultProtocolFactory)
     {
         return new DefaultThriftFrameCodec(maxFrameSize, defaultProtocolFactory);
     }

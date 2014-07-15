@@ -15,10 +15,10 @@
  */
 package com.facebook.nifty.client;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
 
 /**
  * Wraps incoming channel buffer into TTransport.
@@ -26,9 +26,9 @@ import org.jboss.netty.channel.Channel;
 public class TNiftyReadOnlyTransport extends TTransport
 {
     private final Channel channel;
-    private final ChannelBuffer in;
+    private final ByteBuf in;
 
-    public TNiftyReadOnlyTransport(Channel channel, ChannelBuffer in)
+    public TNiftyReadOnlyTransport(Channel channel, ByteBuf in)
     {
         this.channel = channel;
         this.in = in;

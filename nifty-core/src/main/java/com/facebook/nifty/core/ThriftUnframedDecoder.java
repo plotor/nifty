@@ -15,25 +15,36 @@
  */
 package com.facebook.nifty.core;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.ByteToMessageDecoder;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocolUtil;
 import org.apache.thrift.protocol.TType;
 import org.apache.thrift.transport.TTransport;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.handler.codec.frame.FrameDecoder;
 
-public class ThriftUnframedDecoder extends FrameDecoder {
+import java.util.List;
+
+public class ThriftUnframedDecoder extends ByteToMessageDecoder
+{
     @Override
-    protected Object decode(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer)
+    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception
+    {
+        Object result = decode(ctx, ctx.channel(), in);
+        if (result != null) {
+            out.add(result);
+        }
+    }
+
+    protected Object decode(ChannelHandlerContext ctx, Channel channel, ByteBuf buffer)
             throws Exception {
         int messageBeginIndex = buffer.readerIndex();
-        ChannelBuffer messageBuffer = null;
+        ByteBuf messageBuffer = null;
 
         try
         {
-            TTransport transport = new TChannelBufferInputTransport(buffer);
+            TTransport transport = new ByteBufInputTransport(buffer);
             TBinaryProtocol protocol = new TBinaryProtocol(transport);
 
             protocol.readMessageBegin();

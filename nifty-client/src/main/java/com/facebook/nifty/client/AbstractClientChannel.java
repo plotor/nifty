@@ -15,30 +15,26 @@
  */
 package com.facebook.nifty.client;
 
-import com.facebook.nifty.core.TChannelBufferInputTransport;
+import com.facebook.nifty.core.ByteBufInputTransport;
 import com.facebook.nifty.duplex.TDuplexProtocolFactory;
 import io.airlift.units.Duration;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.timeout.ReadTimeoutException;
+import io.netty.handler.timeout.WriteTimeoutException;
+import io.netty.util.Timeout;
+import io.netty.util.Timer;
+import io.netty.util.TimerTask;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TMessage;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelHandler;
-import org.jboss.netty.channel.socket.nio.NioSocketChannel;
-import org.jboss.netty.handler.timeout.ReadTimeoutException;
-import org.jboss.netty.handler.timeout.WriteTimeoutException;
-import org.jboss.netty.util.Timeout;
-import org.jboss.netty.util.Timer;
-import org.jboss.netty.util.TimerTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +47,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @NotThreadSafe
-public abstract class AbstractClientChannel extends SimpleChannelHandler implements
+public abstract class AbstractClientChannel extends ChannelDuplexHandler implements
         NiftyClientChannel {
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractClientChannel.class);
 
@@ -86,14 +82,14 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
         return protocolFactory;
     }
 
-    protected abstract ChannelBuffer extractResponse(Object message) throws TTransportException;
+    protected abstract ByteBuf extractResponse(Object message) throws TTransportException;
 
-    protected int extractSequenceId(ChannelBuffer messageBuffer)
+    protected int extractSequenceId(ByteBuf messageBuffer)
             throws TTransportException
     {
         try {
             messageBuffer.markReaderIndex();
-            TTransport inputTransport = new TChannelBufferInputTransport(messageBuffer);
+            TTransport inputTransport = new ByteBufInputTransport(messageBuffer);
             TProtocol inputProtocol = getProtocolFactory().getInputProtocolFactory().getProtocol(inputTransport);
             TMessage message = inputProtocol.readMessageBegin();
             messageBuffer.resetReaderIndex();
@@ -103,7 +99,7 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
         }
     }
 
-    protected abstract ChannelFuture writeRequest(ChannelBuffer request);
+    protected abstract ChannelFuture writeRequest(ByteBuf request);
 
     public void close()
     {
@@ -162,11 +158,11 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
     public void executeInIoThread(Runnable runnable)
     {
         NioSocketChannel nioSocketChannel = (NioSocketChannel) getNettyChannel();
-        nioSocketChannel.getWorker().executeInIoThread(runnable, true);
+        nioSocketChannel.eventLoop().execute(runnable);
     }
 
     @Override
-    public void sendAsynchronousRequest(final ChannelBuffer message,
+    public void sendAsynchronousRequest(final ByteBuf message,
                                         final boolean oneway,
                                         final Listener listener)
             throws TException
@@ -182,7 +178,7 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
                 try {
                     final Request request = makeRequest(sequenceId, listener);
 
-                    if (!nettyChannel.isConnected()) {
+                    if (!nettyChannel.isActive()) {
                         fireChannelErrorCallback(listener, new TTransportException(TTransportException.NOT_OPEN, "Channel closed"));
                         return;
                     }
@@ -196,6 +192,8 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
 
                     ChannelFuture sendFuture = writeRequest(message);
                     queueSendTimeout(request);
+
+                    getNettyChannel().flush();
 
                     sendFuture.addListener(new ChannelFutureListener()
                     {
@@ -234,7 +232,7 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
             } else {
                 TTransportException transportException =
                         new TTransportException("Sending request failed",
-                                                future.getCause());
+                                                future.cause());
                 onError(transportException);
             }
         }
@@ -244,17 +242,17 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
     }
 
     @Override
-    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e)
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception
     {
         try {
-            ChannelBuffer response = extractResponse(e.getMessage());
+            ByteBuf response = extractResponse(msg);
 
             if (response != null) {
                 int sequenceId = extractSequenceId(response);
                 onResponseReceived(sequenceId, response);
             }
             else {
-                ctx.sendUpstream(e);
+                super.channelRead(ctx, msg);
             }
         }
         catch (Throwable t) {
@@ -263,12 +261,11 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent event)
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
             throws Exception
     {
-        Throwable t = event.getCause();
-        onError(t);
-        ctx.getChannel().close();
+        onError(cause);
+        ctx.channel().close();
     }
 
     private Request makeRequest(int sequenceId, Listener listener)
@@ -308,7 +305,7 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
         }
     }
 
-    private void onResponseReceived(int sequenceId, ChannelBuffer response)
+    private void onResponseReceived(int sequenceId, ByteBuf response)
     {
         Request request = requestMap.remove(sequenceId);
         if (request == null) {
@@ -320,7 +317,7 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
     }
 
     @Override
-    public void channelDisconnected(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception
     {
         if (!requestMap.isEmpty()) {
             onError(new TTransportException("Client was disconnected by server"));
@@ -364,7 +361,7 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
         }
     }
 
-    private void fireResponseReceivedCallback(Listener listener, ChannelBuffer response)
+    private void fireResponseReceivedCallback(Listener listener, ByteBuf response)
     {
         try {
             listener.onResponseReceived(response);
@@ -392,22 +389,25 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
     private void onSendTimeoutFired(Request request)
     {
         cancelAllTimeouts();
-        WriteTimeoutException timeoutException = new WriteTimeoutException("Timed out waiting " + getSendTimeout() + " to send data to server");
-        fireChannelErrorCallback(request.getListener(), new TTransportException(TTransportException.TIMED_OUT, timeoutException));
+        fireChannelErrorCallback(request.getListener(), new TTransportException(TTransportException.TIMED_OUT,
+                                                                                "Timed out waiting " + getSendTimeout() + " to send data to server",
+                                                                                WriteTimeoutException.INSTANCE));
     }
 
     private void onReceiveTimeoutFired(Request request)
     {
         cancelAllTimeouts();
-        ReadTimeoutException timeoutException = new ReadTimeoutException("Timed out waiting " + getReceiveTimeout() + " to receive response");
-        fireChannelErrorCallback(request.getListener(), new TTransportException(TTransportException.TIMED_OUT, timeoutException));
+        fireChannelErrorCallback(request.getListener(), new TTransportException(TTransportException.TIMED_OUT,
+                                                                                "Timed out waiting " + getReceiveTimeout() + " to receive response",
+                                                                                ReadTimeoutException.INSTANCE));
     }
 
     private void onReadTimeoutFired(Request request)
     {
         cancelAllTimeouts();
-        ReadTimeoutException timeoutException = new ReadTimeoutException("Timed out waiting " + getReadTimeout() + " to read data from server");
-        fireChannelErrorCallback(request.getListener(), new TTransportException(TTransportException.TIMED_OUT, timeoutException));
+        fireChannelErrorCallback(request.getListener(), new TTransportException(TTransportException.TIMED_OUT,
+                                                                                "Timed out waiting " + getReadTimeout() + " to read data from server",
+                                                                                ReadTimeoutException.INSTANCE));
     }
 
 
@@ -501,7 +501,7 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
                     try {
                         timerTask.run(timeout);
                     } catch (Exception e) {
-                        Channels.fireExceptionCaught(channel.getNettyChannel(), e);
+                        channel.getNettyChannel().pipeline().fireExceptionCaught(e);
                     }
                 }
             });
@@ -569,7 +569,7 @@ public abstract class AbstractClientChannel extends SimpleChannelHandler impleme
 
         ReadTimeoutTask(long timeoutNanos, Request request)
         {
-            this.timeoutHandler = TimeoutHandler.findTimeoutHandler(getNettyChannel().getPipeline());
+            this.timeoutHandler = TimeoutHandler.findTimeoutHandler(getNettyChannel().pipeline());
             this.timeoutNanos = timeoutNanos;
             this.request = request;
         }

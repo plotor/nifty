@@ -16,8 +16,8 @@
 package com.facebook.nifty.client;
 
 import com.facebook.nifty.duplex.TDuplexProtocolFactory;
+import io.netty.buffer.ByteBuf;
 import org.apache.thrift.TException;
-import org.jboss.netty.buffer.ChannelBuffer;
 
 public interface RequestChannel
 {
@@ -31,7 +31,7 @@ public interface RequestChannel
      * @param listener
      * @throws TException
      */
-    void sendAsynchronousRequest(final ChannelBuffer request,
+    void sendAsynchronousRequest(final ByteBuf request,
             final boolean oneway,
             final Listener listener)
             throws TException;
@@ -81,7 +81,7 @@ public interface RequestChannel
          *
          * @param message The response buffer
          */
-        void onResponseReceived(ChannelBuffer message);
+        void onResponseReceived(ByteBuf message);
 
         /**
          * This will be called if the channel encounters an error before the request is sent or

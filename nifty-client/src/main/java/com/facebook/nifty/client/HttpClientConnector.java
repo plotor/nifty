@@ -15,15 +15,12 @@
  */
 package com.facebook.nifty.client;
 
+import com.facebook.nifty.core.NiftyChannelInitializer;
 import com.facebook.nifty.duplex.TDuplexProtocolFactory;
 import com.google.common.net.HostAndPort;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
-import org.jboss.netty.handler.codec.http.HttpClientCodec;
-import org.jboss.netty.util.Timer;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelPipeline;
+import io.netty.handler.codec.http.HttpClientCodec;
 
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -52,7 +49,8 @@ public class HttpClientConnector extends AbstractClientConnector<HttpClientChann
     {
         super(new InetSocketAddress(HostAndPort.fromString(hostNameAndPort).getHostText(),
                                     HostAndPort.fromString(hostNameAndPort).getPortOrDefault(80)),
-              protocolFactory);
+              protocolFactory
+        );
 
         this.endpointUri = new URI("http", hostNameAndPort, servicePath, null, null);
     }
@@ -77,23 +75,22 @@ public class HttpClientConnector extends AbstractClientConnector<HttpClientChann
                                       getProtocolFactory(),
                                       endpointUri.getHost(),
                                       endpointUri.getPath());
-        channel.getNettyChannel().getPipeline().addLast("thriftHandler", channel);
+        channel.getNettyChannel().pipeline().addLast("thriftHandler", channel);
         return channel;
     }
 
     @Override
-    public ChannelPipelineFactory newChannelPipelineFactory(final int maxFrameSize, NettyClientConfig clientConfig)
+    public NiftyChannelInitializer<Channel> newChannelInitializer(int maxFrameSize, NettyClientConfig clientConfig)
     {
-        return new ChannelPipelineFactory()
+        return new NiftyChannelInitializer<Channel>()
         {
             @Override
-            public ChannelPipeline getPipeline()
-                    throws Exception
+            public void initChannel(Channel channel) throws Exception
             {
-                ChannelPipeline cp = Channels.pipeline();
+                ChannelPipeline cp = channel.pipeline();
                 cp.addLast("httpClientCodec", new HttpClientCodec());
-                cp.addLast("chunkAggregator", new HttpChunkAggregator(maxFrameSize));
-                return cp;
+                // TODO(NETTY4): netty4 has no chunk aggregator, but do we need it? try to add a test that sends a chunked http message
+                //cp.addLast("chunkAggregator", new HttpChunkAggregator(maxFrameSize));
             }
         };
     }

@@ -16,23 +16,24 @@
 package com.facebook.nifty.codec;
 
 import com.facebook.nifty.core.ThriftMessage;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.handler.codec.oneone.OneToOneEncoder;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.MessageToByteEncoder;
 
-public abstract class ThriftFrameEncoder extends OneToOneEncoder
+public abstract class ThriftFrameEncoder extends MessageToByteEncoder<ThriftMessage>
 {
-    protected abstract ChannelBuffer encode(ChannelHandlerContext ctx, Channel channel, ThriftMessage message)
+    protected abstract ByteBuf encode(ChannelHandlerContext ctx, Channel channel, ThriftMessage message)
             throws Exception;
 
-    protected Object encode(ChannelHandlerContext ctx, Channel channel, Object message)
+    @Override
+    protected void encode(ChannelHandlerContext ctx, ThriftMessage message, ByteBuf out)
             throws Exception
     {
-        if (!(message instanceof ThriftMessage)) {
-            return message;
-        }
-
-        return encode(ctx, channel, (ThriftMessage) message);
+        // TODO(NETTY4): this does a copy, can we get rid of it?
+        //ByteBuf encoding = encode(ctx, ctx.channel(), (ThriftMessage) message);
+        //out.writeBytes(encoding);
+        ByteBuf encoding = encode(ctx, ctx.channel(), (ThriftMessage) message);
+        out.writeBytes(encoding);
     }
 }

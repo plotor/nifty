@@ -15,21 +15,21 @@
  */
 package com.facebook.nifty.core;
 
-import org.jboss.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ByteBuf;
 
 public class ThriftMessage
 {
-    private final ChannelBuffer buffer;
+    private final ByteBuf buffer;
     private final ThriftTransportType transportType;
     private long processStartTimeMillis;
 
-    public ThriftMessage(ChannelBuffer buffer, ThriftTransportType transportType)
+    public ThriftMessage(ByteBuf buffer, ThriftTransportType transportType)
     {
-        this.buffer = buffer;
+        this.buffer = buffer.retain();
         this.transportType = transportType;
     }
 
-    public ChannelBuffer getBuffer()
+    public ByteBuf getBuffer()
     {
         return buffer;
     }
@@ -51,7 +51,7 @@ public class ThriftMessage
         return new Factory()
         {
             @Override
-            public ThriftMessage create(ChannelBuffer messageBuffer)
+            public ThriftMessage create(ByteBuf messageBuffer)
             {
                 return new ThriftMessage(messageBuffer, getTransportType());
             }
@@ -81,6 +81,6 @@ public class ThriftMessage
 
     public static interface Factory
     {
-        public ThriftMessage create(ChannelBuffer messageBuffer);
+        public ThriftMessage create(ByteBuf messageBuffer);
     }
 }

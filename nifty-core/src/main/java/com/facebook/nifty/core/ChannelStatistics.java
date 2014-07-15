@@ -15,21 +15,23 @@
  */
 package com.facebook.nifty.core;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.ChannelEvent;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.DownstreamMessageEvent;
-import org.jboss.netty.channel.SimpleChannelHandler;
-import org.jboss.netty.channel.UpstreamMessageEvent;
-import org.jboss.netty.channel.group.ChannelGroup;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPromise;
+import io.netty.channel.group.ChannelGroup;
+
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Counters for number of channels open, generic traffic stats and maybe cleanup logic here.
  */
-public class ChannelStatistics extends SimpleChannelHandler implements NiftyMetrics
+@ChannelHandler.Sharable
+public class ChannelStatistics extends ChannelDuplexHandler implements NiftyMetrics
 {
     private final AtomicInteger channelCount = new AtomicInteger(0);
     private final AtomicLong bytesRead = new AtomicLong(0);
@@ -43,55 +45,52 @@ public class ChannelStatistics extends SimpleChannelHandler implements NiftyMetr
         this.allChannels = allChannels;
     }
 
-    public void handleUpstream(ChannelHandlerContext ctx, ChannelEvent e)
-            throws Exception
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception
     {
-        if (e instanceof ChannelStateEvent) {
-            ChannelStateEvent cse = (ChannelStateEvent) e;
-            switch (cse.getState()) {
-                case OPEN:
-                    if (Boolean.TRUE.equals(cse.getValue())) {
-                        // connect
-                        channelCount.incrementAndGet();
-                        allChannels.add(e.getChannel());
-                    }
-                    else {
-                        // disconnect
-                        channelCount.decrementAndGet();
-                        allChannels.remove(e.getChannel());
-                    }
-                    break;
-                case BOUND:
-                    break;
-            }
-        }
+        channelCount.incrementAndGet();
+        allChannels.add(ctx.channel());
 
-        if (e instanceof UpstreamMessageEvent) {
-            UpstreamMessageEvent ume = (UpstreamMessageEvent) e;
-            if (ume.getMessage() instanceof ChannelBuffer) {
-                ChannelBuffer cb = (ChannelBuffer) ume.getMessage();
-                int readableBytes = cb.readableBytes();
-                //  compute stats here, bytes read from remote
-                bytesRead.getAndAdd(readableBytes);
-            }
-        }
-
-        ctx.sendUpstream(e);
+        super.channelActive(ctx);
     }
 
-    public void handleDownstream(ChannelHandlerContext ctx, ChannelEvent e)
-            throws Exception
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception
     {
-        if (e instanceof DownstreamMessageEvent) {
-            DownstreamMessageEvent dme = (DownstreamMessageEvent) e;
-            if (dme.getMessage() instanceof ChannelBuffer) {
-                ChannelBuffer cb = (ChannelBuffer) dme.getMessage();
-                int readableBytes = cb.readableBytes();
-                // compute stats here, bytes written to remote
-                bytesWritten.getAndAdd(readableBytes);
-            }
+        channelCount.decrementAndGet();
+        allChannels.remove(ctx.channel());
+
+        super.channelInactive(ctx);
+    }
+
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception
+    {
+        checkArgument(msg instanceof ByteBuf);
+
+        if (msg instanceof ByteBuf) {
+            ByteBuf buffer = (ByteBuf) msg;
+            int readableBytes = buffer.readableBytes();
+            // compute stats here, bytes read from remote
+            bytesRead.getAndAdd(readableBytes);
         }
-        ctx.sendDownstream(e);
+
+        super.channelRead(ctx, msg);
+    }
+
+    @Override
+    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception
+    {
+        checkArgument(msg instanceof ByteBuf);
+
+        if (msg instanceof ByteBuf) {
+            ByteBuf buffer = (ByteBuf) msg;
+            int readableBytes = buffer.readableBytes();
+            // compute stats here, bytes written to remote
+            bytesWritten.getAndAdd(readableBytes);
+        }
+
+        super.write(ctx, msg, promise);
     }
 
     public int getChannelCount()

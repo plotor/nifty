@@ -22,12 +22,12 @@ import com.facebook.nifty.test.LogEntry;
 import com.facebook.nifty.test.ResultCode;
 import com.facebook.nifty.test.scribe;
 import com.google.common.base.Throwables;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.logging.InternalLoggerFactory;
-import org.jboss.netty.logging.Slf4JLoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -96,7 +96,7 @@ public class TestNiftyClient
         }
     }
 
-    private ScopedNiftyServer makeServer()
+    private ScopedNiftyServer makeServer() throws InterruptedException
     {
         scribe.Processor processor = new scribe.Processor<>(new scribe.Iface()
         {

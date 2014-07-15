@@ -15,28 +15,26 @@
  */
 package com.facebook.nifty.client;
 
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.handler.codec.frame.LengthFieldBasedFrameDecoder;
-import org.jboss.netty.handler.codec.frame.LengthFieldPrepender;
+import com.facebook.nifty.core.NiftyChannelInitializer;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelPipeline;
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.codec.LengthFieldPrepender;
 
-class NiftyClientChannelPipelineFactory implements ChannelPipelineFactory
+class DefaultNiftyClientChannelInitializer<C extends Channel> extends NiftyChannelInitializer<C>
 {
     private final int maxFrameSize;
 
-    NiftyClientChannelPipelineFactory(int maxFrameSize)
+    DefaultNiftyClientChannelInitializer(int maxFrameSize)
     {
         this.maxFrameSize = maxFrameSize;
     }
 
     @Override
-    public ChannelPipeline getPipeline()
-            throws Exception
+    public void initChannel(C channel) throws Exception
     {
-        ChannelPipeline cp = Channels.pipeline();
+        ChannelPipeline cp = channel.pipeline();
         cp.addLast("frameEncoder", new LengthFieldPrepender(4));
         cp.addLast("frameDecoder", new LengthFieldBasedFrameDecoder(maxFrameSize, 0, 4, 0, 4));
-        return cp;
     }
 }

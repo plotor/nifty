@@ -18,17 +18,16 @@ package com.facebook.nifty.codec;
 import com.facebook.nifty.core.TNiftyTransport;
 import com.facebook.nifty.core.ThriftMessage;
 import com.facebook.nifty.core.ThriftTransportType;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.TooLongFrameException;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.protocol.TProtocolUtil;
 import org.apache.thrift.protocol.TType;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.handler.codec.frame.TooLongFrameException;
 
 public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
 {
@@ -43,16 +42,16 @@ public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
     }
 
     @Override
-    protected ThriftMessage decode(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer)
+    protected ThriftMessage decode(ChannelHandlerContext ctx, Channel channel, ByteBuf buffer)
             throws Exception
     {
-        if (!buffer.readable()) {
+        if (!buffer.isReadable()) {
             return null;
         }
 
         short firstByte = buffer.getUnsignedByte(0);
         if (firstByte >= 0x80) {
-            ChannelBuffer messageBuffer = tryDecodeUnframedMessage(ctx, channel, buffer, inputProtocolFactory);
+            ByteBuf messageBuffer = tryDecodeUnframedMessage(ctx, channel, buffer, inputProtocolFactory);
 
             if (messageBuffer == null) {
                 return null;
@@ -65,7 +64,7 @@ public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
             // Expecting a framed message, but not enough bytes available to read the frame size
             return null;
         } else {
-            ChannelBuffer messageBuffer = tryDecodeFramedMessage(ctx, channel, buffer, true);
+            ByteBuf messageBuffer = tryDecodeFramedMessage(ctx, channel, buffer, true);
 
             if (messageBuffer == null) {
                 return null;
@@ -76,9 +75,9 @@ public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
         }
     }
 
-    protected ChannelBuffer tryDecodeFramedMessage(ChannelHandlerContext ctx,
+    protected ByteBuf tryDecodeFramedMessage(ChannelHandlerContext ctx,
                                                    Channel channel,
-                                                   ChannelBuffer buffer,
+                                                   ByteBuf buffer,
                                                    boolean stripFraming)
     {
         // Framed messages are prefixed by the size of the frame (which doesn't include the
@@ -99,8 +98,7 @@ public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
         int messageContentsLength = messageStartReaderIndex + messageLength - messageContentsOffset;
 
         if (messageContentsLength > maxFrameSize) {
-            Channels.fireExceptionCaught(
-                    ctx,
+            ctx.fireExceptionCaught(
                     new TooLongFrameException("Maximum frame size of " + maxFrameSize +
                                               " exceeded")
             );
@@ -115,7 +113,7 @@ public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
             return null;
         } else {
             // Full message is available, return it
-            ChannelBuffer messageBuffer = extractFrame(buffer,
+            ByteBuf messageBuffer = extractFrame(buffer,
                                                        messageContentsOffset,
                                                        messageContentsLength);
             buffer.readerIndex(messageStartReaderIndex + messageLength);
@@ -123,9 +121,9 @@ public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
         }
     }
 
-    protected ChannelBuffer tryDecodeUnframedMessage(ChannelHandlerContext ctx,
+    protected ByteBuf tryDecodeUnframedMessage(ChannelHandlerContext ctx,
                                                      Channel channel,
-                                                     ChannelBuffer buffer,
+                                                     ByteBuf buffer,
                                                      TProtocolFactory inputProtocolFactory)
             throws TException
     {
@@ -153,8 +151,7 @@ public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
             return null;
         } finally {
             if (buffer.readerIndex() - messageStartReaderIndex > maxFrameSize) {
-                Channels.fireExceptionCaught(
-                        ctx,
+                ctx.fireExceptionCaught(
                         new TooLongFrameException("Maximum frame size of " + maxFrameSize + " exceeded")
                 );
             }
@@ -167,13 +164,13 @@ public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
         }
 
         // We have a full message in the read buffer, slice it off
-        ChannelBuffer messageBuffer =
+        ByteBuf messageBuffer =
                 extractFrame(buffer, messageStartReaderIndex, messageLength);
         buffer.readerIndex(messageStartReaderIndex + messageLength);
         return messageBuffer;
     }
 
-    protected ChannelBuffer extractFrame(ChannelBuffer buffer, int index, int length)
+    protected ByteBuf extractFrame(ByteBuf buffer, int index, int length)
     {
         // Slice should be sufficient here (and avoids the copy in LengthFieldBasedFrameDecoder)
         // because we know no one is going to modify the contents in the read buffers.

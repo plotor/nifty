@@ -15,9 +15,9 @@
  */
 package com.facebook.nifty.codec;
 
-import org.jboss.netty.channel.ChannelDownstreamHandler;
-import org.jboss.netty.channel.ChannelUpstreamHandler;
+import com.facebook.nifty.core.ThriftMessage;
+import io.netty.handler.codec.ByteToMessageCodec;
 
-public interface ThriftFrameCodec extends ChannelUpstreamHandler, ChannelDownstreamHandler
+public abstract class ThriftFrameCodec extends ByteToMessageCodec<ThriftMessage>
 {
 }

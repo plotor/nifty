@@ -15,30 +15,23 @@
  */
 package com.facebook.nifty.client.socks;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelHandler;
-
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
+import com.facebook.nifty.core.NiftyChannelInitializer;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 
 /**
  * This handshake handler swap out the channel pipeline with the delegate
  * upon handshake completion.
  */
-public class Socks4HandshakeHandler extends SimpleChannelHandler
+public class Socks4HandshakeHandler extends ChannelInboundHandlerAdapter
 {
     private final SettableChannelFuture channelFuture = new SettableChannelFuture();
-    private final ChannelPipelineFactory delegate;
+    //private final ChannelPipelineFactory delegate;
 
-    public Socks4HandshakeHandler(ChannelPipelineFactory delegate)
+    public <C extends Channel> Socks4HandshakeHandler(NiftyChannelInitializer<C> delegate)
     {
-        this.delegate = delegate;
+        //this.delegate = delegate;
     }
 
     public SettableChannelFuture getChannelFuture()
@@ -47,44 +40,43 @@ public class Socks4HandshakeHandler extends SimpleChannelHandler
     }
 
     @Override
-    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e)
-            throws Exception
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception
     {
-        channelFuture.setChannel(ctx.getChannel());
-        if (e.getMessage() instanceof ChannelBuffer) {
-            ChannelBuffer msg = (ChannelBuffer) e.getMessage();
-            if (msg.readableBytes() < 8) {
-                channelFuture.setFailure(new IOException("invalid sock server reply length = " + msg.readableBytes()));
-            }
-            // ignore
-            msg.readByte();
-            int status = msg.readByte();
-            int port = msg.readShort();
-            byte[] addr = new byte[4];
-            msg.readBytes(addr);
-
-            ctx.getChannel().setAttachment(new InetSocketAddress(InetAddress.getByAddress(addr), port));
-
-            if (status == SocksProtocols.REQUEST_GRANTED) {
-                ctx.getPipeline().remove(Socks4ClientBootstrap.FRAME_DECODER);
-                ctx.getPipeline().remove(Socks4ClientBootstrap.HANDSHAKE);
-                ChannelPipeline delegatePipeline = delegate.getPipeline();
-                for (String name : delegatePipeline.getNames()) {
-                    ctx.getPipeline().addLast(name, delegatePipeline.get(name));
-                }
-                channelFuture.setSuccess();
-            }
-            else {
-                channelFuture.setFailure(new IOException("sock server reply failure code :" + Integer.toHexString(status)));
-            }
-        }
+        //channelFuture.setChannel(ctx.channel());
+        //if (msg instanceof ByteBuf) {
+        //    ByteBuf msg = (ByteBuf) e.getMessage();
+        //    if (msg.readableBytes() < 8) {
+        //        channelFuture.getDefaultChannelPromise().setFailure(new IOException("invalid sock server reply length = " + msg.readableBytes()));
+        //    }
+        //    // ignore
+        //    msg.readByte();
+        //    int status = msg.readByte();
+        //    int port = msg.readShort();
+        //    byte[] addr = new byte[4];
+        //    msg.readBytes(addr);
+        //
+        //    ctx.channel().setAttachment(new InetSocketAddress(InetAddress.getByAddress(addr), port));
+        //
+        //    if (status == SocksProtocols.REQUEST_GRANTED) {
+        //        ctx.pipeline().remove(Socks4ClientBootstrap.FRAME_DECODER);
+        //        ctx.pipeline().remove(Socks4ClientBootstrap.HANDSHAKE);
+        //        ChannelPipeline delegatePipeline = delegate.getPipeline();
+        //        for (String name : delegatePipeline.names()) {
+        //            ctx.pipeline().addLast(name, delegatePipeline.get(name));
+        //        }
+        //        channelFuture.setSuccess();
+        //    }
+        //    else {
+        //        channelFuture.setFailure(new IOException("sock server reply failure code :" + Integer.toHexString(status)));
+        //    }
+        //}
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
             throws Exception
     {
-        channelFuture.setChannel(ctx.getChannel());
-        channelFuture.setFailure(e.getCause());
+        channelFuture.setChannel(ctx.channel());
+        channelFuture.setFailure(cause);
     }
 }

@@ -15,21 +15,22 @@
  */
 package com.facebook.nifty.core;
 
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 
-public class ConnectionContextHandler extends SimpleChannelUpstreamHandler
+public class ConnectionContextHandler extends ChannelInboundHandlerAdapter
 {
     @Override
-    public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception
+    public void channelRegistered(ChannelHandlerContext ctx) throws Exception
     {
-        super.channelConnected(ctx, e);
-
-        ConnectionContext connectionContext = ConnectionContexts.getContext(ctx.getChannel());
+        Channel channel = ctx.channel();
+        ConnectionContext connectionContext = ConnectionContexts.createContext(channel);
         if (connectionContext instanceof NiftyConnectionContext) {
             NiftyConnectionContext niftyConnectionContext = (NiftyConnectionContext)connectionContext;
-            niftyConnectionContext.setRemoteAddress(ctx.getChannel().getRemoteAddress());
+            niftyConnectionContext.setRemoteAddress(channel.remoteAddress());
         }
+
+        ctx.fireChannelRegistered();
     }
 }

@@ -35,6 +35,7 @@ import java.nio.channels.spi.AbstractSelector;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * An implementation of {@link SelectorProvider}, which is nifty's way to get sockets
@@ -67,7 +68,8 @@ public class DeafSelectorProvider extends SelectorProvider
     public AbstractSelector openSelector() throws IOException
     {
         return new AbstractSelector(this) {
-
+            private final Object monitor = new Object();
+            private final AtomicBoolean wakeup = new AtomicBoolean(false);
             private final Set<SelectionKey> keys = Sets.newHashSet();
 
             @Override
@@ -147,25 +149,48 @@ public class DeafSelectorProvider extends SelectorProvider
             @Override
             public int selectNow() throws IOException
             {
+                wakeup.set(false);
                 return 0;
             }
 
             @Override
             public int select(long timeout) throws IOException
             {
-                return 0;
+                synchronized (monitor) {
+                    try {
+                        if (!wakeup.getAndSet(false)) {
+                            monitor.wait(timeout);
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return 0;
+                }
             }
 
             @Override
             public int select() throws IOException
             {
-                return 0;
+                synchronized (monitor) {
+                    try {
+                        if (!wakeup.getAndSet(false)) {
+                            monitor.wait(1);
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return 0;
+                }
             }
 
             @Override
             public Selector wakeup()
             {
-                return this;
+                synchronized (monitor) {
+                    wakeup.set(true);
+                    monitor.notify();
+                    return this;
+                }
             }
 
         };

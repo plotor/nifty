@@ -15,21 +15,28 @@
  */
 package com.facebook.nifty.core;
 
-import org.jboss.netty.channel.ChannelFactory;
-import org.jboss.netty.channel.group.ChannelGroup;
+import io.netty.bootstrap.Bootstrap;
+import io.netty.bootstrap.ChannelFactory;
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.group.ChannelGroup;
+import io.netty.util.concurrent.EventExecutorGroup;
+import io.netty.util.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.Time;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class ShutdownUtil
 {
     private static final Logger log = LoggerFactory.getLogger(ShutdownUtil.class);
 
     public static void shutdownChannelFactory(ChannelFactory channelFactory,
-                                              ExecutorService bossExecutor,
-                                              ExecutorService workerExecutor,
+                                              EventExecutorGroup bossExecutor,
+                                              EventExecutorGroup workerExecutor,
                                               ChannelGroup allChannels)
     {
         // Close all channels
@@ -37,10 +44,10 @@ public class ShutdownUtil
             closeChannels(allChannels);
         }
 
-        // Shutdown the channel factory
-        if (channelFactory != null) {
-            channelFactory.shutdown();
-        }
+        //// Shutdown the channel factory
+        //if (channelFactory != null) {
+        //    channelFactory.shutdown();
+        //}
 
         // Stop boss threads
         if (bossExecutor != null) {
@@ -52,9 +59,36 @@ public class ShutdownUtil
             shutdownExecutor(workerExecutor, "workerExecutor");
         }
 
-        // Release any other resources netty might be holding onto via this channelFactory
-        if (channelFactory != null) {
-            channelFactory.releaseExternalResources();
+        //// Release any other resources netty might be holding onto via this channelFactory
+        //if (channelFactory != null) {
+        //    channelFactory.releaseExternalResources();
+        //}
+    }
+
+    public static void shutdownChannelFactory(Bootstrap bootstrap, ChannelGroup allChannels)
+    {
+        // TODO(NETTY4): implement this
+        try {
+            bootstrap.group().shutdownGracefully(100, 200, TimeUnit.MILLISECONDS).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void shutdownChannelFactory(ServerBootstrap bootstrap, ChannelGroup allChannels)
+    {
+        // TODO(NETTY4): fix this
+        try {
+            bootstrap.group().shutdownGracefully(100, 200, TimeUnit.MILLISECONDS).get();
+            bootstrap.childGroup().shutdownGracefully(100, 200, TimeUnit.MILLISECONDS).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
         }
     }
 
@@ -72,6 +106,26 @@ public class ShutdownUtil
                 log.warn("Interrupted while closing client connections");
                 Thread.currentThread().interrupt();
             }
+        }
+    }
+
+    // TODO : make wait time configurable ?
+    public static void shutdownExecutor(EventExecutorGroup executor, final String name)
+    {
+        Future<?> terminationFuture = executor.shutdownGracefully();
+        try {
+            log.info("Waiting for {} to shutdown", name);
+            //if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+            try {
+                terminationFuture.get(5, TimeUnit.SECONDS);
+            }
+            catch (TimeoutException | ExecutionException e) {
+                log.warn("{} did not shutdown properly", name);
+            }
+        }
+        catch (InterruptedException e) {
+            log.warn("Interrupted while waiting for {} to shutdown", name);
+            Thread.currentThread().interrupt();
         }
     }
 

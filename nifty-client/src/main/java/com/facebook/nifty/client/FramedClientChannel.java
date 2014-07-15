@@ -16,10 +16,10 @@
 package com.facebook.nifty.client;
 
 import com.facebook.nifty.duplex.TDuplexProtocolFactory;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.util.Timer;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.util.Timer;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -30,13 +30,13 @@ public class FramedClientChannel extends AbstractClientChannel {
     }
 
     @Override
-    protected ChannelBuffer extractResponse(Object message) {
-        if (!(message instanceof ChannelBuffer)) {
+    protected ByteBuf extractResponse(Object message) {
+        if (!(message instanceof ByteBuf)) {
             return null;
         }
 
-        ChannelBuffer buffer = (ChannelBuffer) message;
-        if (!buffer.readable()) {
+        ByteBuf buffer = (ByteBuf) message;
+        if (!buffer.isReadable()) {
             return null;
         }
 
@@ -44,7 +44,7 @@ public class FramedClientChannel extends AbstractClientChannel {
     }
 
     @Override
-    protected ChannelFuture writeRequest(ChannelBuffer request) {
+    protected ChannelFuture writeRequest(ByteBuf request) {
         return getNettyChannel().write(request);
     }
 

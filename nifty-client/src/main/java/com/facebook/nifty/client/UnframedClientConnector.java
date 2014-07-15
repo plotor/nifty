@@ -15,14 +15,12 @@
  */
 package com.facebook.nifty.client;
 
+import com.facebook.nifty.core.NiftyChannelInitializer;
 import com.facebook.nifty.core.ThriftUnframedDecoder;
 import com.facebook.nifty.duplex.TDuplexProtocolFactory;
 import com.google.common.net.HostAndPort;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.util.Timer;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelPipeline;
 
 import java.net.InetSocketAddress;
 
@@ -51,23 +49,23 @@ public class UnframedClientConnector extends AbstractClientConnector<UnframedCli
     public UnframedClientChannel newThriftClientChannel(Channel nettyChannel, NettyClientConfig clientConfig)
     {
         UnframedClientChannel channel = new UnframedClientChannel(nettyChannel, clientConfig.getTimer(), getProtocolFactory());
-        ChannelPipeline cp = nettyChannel.getPipeline();
+        ChannelPipeline cp = nettyChannel.pipeline();
         TimeoutHandler.addToPipeline(cp);
         cp.addLast("thriftHandler", channel);
         return channel;
     }
 
     @Override
-    public ChannelPipelineFactory newChannelPipelineFactory(final int maxFrameSize, NettyClientConfig clientConfig)
+    public NiftyChannelInitializer<Channel> newChannelInitializer(int maxFrameSize, NettyClientConfig clientConfig)
     {
-        return new ChannelPipelineFactory() {
+        return new NiftyChannelInitializer<Channel>()
+        {
             @Override
-            public ChannelPipeline getPipeline()
-                    throws Exception {
-                ChannelPipeline cp = Channels.pipeline();
+            public void initChannel(Channel channel) throws Exception
+            {
+                ChannelPipeline cp = channel.pipeline();
                 TimeoutHandler.addToPipeline(cp);
                 cp.addLast("thriftUnframedDecoder", new ThriftUnframedDecoder());
-                return cp;
             }
         };
     }

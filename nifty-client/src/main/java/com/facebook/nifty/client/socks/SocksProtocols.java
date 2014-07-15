@@ -16,8 +16,8 @@
 package com.facebook.nifty.client.socks;
 
 import com.google.common.base.Charsets;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 
 import java.net.InetAddress;
 
@@ -36,13 +36,13 @@ public class SocksProtocols
     public static final int REQUEST_FAILED_NO_IDENTD = 0x5c;
     public static final int REQUEST_FAILED_USERID_NOT_CONFIRMED = 0x5d;
 
-    public static ChannelBuffer createSocks4packet(InetAddress address, int port)
+    public static ByteBuf createSocks4packet(InetAddress address, int port)
     {
         if (address == null) {
             throw new IllegalArgumentException("address is null");
         }
         byte[] userBytes = System.getProperty("user.name", "").getBytes(Charsets.ISO_8859_1);
-        ChannelBuffer handshake = ChannelBuffers.dynamicBuffer(9 + userBytes.length);
+        ByteBuf handshake = PooledByteBufAllocator.DEFAULT.heapBuffer(9 + userBytes.length);
         handshake.writeByte(SOCKS_VERSION_4); // SOCKS version
         handshake.writeByte(CONNECT); // CONNECT
         handshake.writeShort(port); // port
@@ -52,14 +52,14 @@ public class SocksProtocols
         return handshake;
     }
 
-    public static ChannelBuffer createSock4aPacket(String hostName, int port)
+    public static ByteBuf createSock4aPacket(String hostName, int port)
     {
         if (hostName == null) {
             throw new IllegalArgumentException("hostName is null");
         }
         byte[] userBytes = System.getProperty("user.name", "").getBytes(Charsets.ISO_8859_1);
         byte[] hostNameBytes = hostName.getBytes(Charsets.ISO_8859_1);
-        ChannelBuffer handshake = ChannelBuffers.dynamicBuffer(10 + userBytes.length + hostNameBytes.length);
+        ByteBuf handshake = PooledByteBufAllocator.DEFAULT.heapBuffer(10 + userBytes.length + hostNameBytes.length);
         handshake.writeByte(SOCKS_VERSION_4); // SOCKS version
         handshake.writeByte(CONNECT); // CONNECT
         handshake.writeShort(port); // port

@@ -16,11 +16,10 @@
 package com.facebook.nifty.client;
 
 import io.airlift.units.Duration;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.channel.Channel;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ExceptionEvent;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.concurrent.TimeUnit;
@@ -43,7 +42,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class TNiftyClientTransport extends TNiftyAsyncClientTransport
 {
 
-    private final ChannelBuffer readBuffer;
+    private final ByteBuf readBuffer;
     private final Duration receiveTimeout;
     private final Lock lock = new ReentrantLock();
     @GuardedBy("lock")
@@ -55,11 +54,11 @@ public class TNiftyClientTransport extends TNiftyAsyncClientTransport
     {
         super(channel);
         this.receiveTimeout = receiveTimeout;
-        this.readBuffer = ChannelBuffers.dynamicBuffer(256);
+        this.readBuffer = PooledByteBufAllocator.DEFAULT.buffer(256);
         setListener(new TNiftyClientListener()
         {
             @Override
-            public void onFrameRead(Channel c, ChannelBuffer buffer)
+            public void onFrameRead(Channel c, ByteBuf buffer)
             {
                 lock.lock();
                 try {
@@ -86,11 +85,11 @@ public class TNiftyClientTransport extends TNiftyAsyncClientTransport
             }
 
             @Override
-            public void onExceptionEvent(ExceptionEvent e)
+            public void onExceptionEvent(Throwable cause)
             {
                 lock.lock();
                 try {
-                    exception = e.getCause();
+                    exception = cause;
                     condition.signal();
                 }
                 finally {

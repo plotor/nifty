@@ -17,17 +17,16 @@ package com.facebook.nifty.client;
 
 import com.facebook.nifty.duplex.TDuplexProtocolFactory;
 import com.google.common.net.HttpHeaders;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.util.Timer;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.handler.codec.http.DefaultHttpRequest;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpRequest;
-import org.jboss.netty.handler.codec.http.HttpResponse;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
-import org.jboss.netty.handler.codec.http.HttpVersion;
-import org.jboss.netty.util.Timer;
 
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Map;
@@ -57,22 +56,22 @@ public class HttpClientChannel extends AbstractClientChannel {
     }
 
     @Override
-    protected ChannelBuffer extractResponse(Object message) throws TTransportException
+    protected ByteBuf extractResponse(Object message) throws TTransportException
     {
-        if (!(message instanceof HttpResponse)) {
+        if (!(message instanceof DefaultFullHttpResponse)) {
             return null;
         }
 
-        HttpResponse httpResponse = (HttpResponse) message;
+        DefaultFullHttpResponse httpResponse = (DefaultFullHttpResponse) message;
 
         if (!httpResponse.getStatus().equals(HttpResponseStatus.OK)) {
             throw new TTransportException("HTTP response had non-OK status: " + httpResponse
                     .getStatus().toString());
         }
 
-        ChannelBuffer content = httpResponse.getContent();
+        ByteBuf content = httpResponse.content();
 
-        if (!content.readable()) {
+        if (!content.isReadable()) {
             return null;
         }
 
@@ -80,24 +79,22 @@ public class HttpClientChannel extends AbstractClientChannel {
     }
 
     @Override
-    protected ChannelFuture writeRequest(ChannelBuffer request)
+    protected ChannelFuture writeRequest(ByteBuf request)
     {
-        HttpRequest httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST,
-                                                         endpointUri);
+        DefaultFullHttpRequest httpRequest =
+                new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, endpointUri, request);
 
-        httpRequest.setHeader(HttpHeaders.HOST, hostName);
-        httpRequest.setHeader(HttpHeaders.CONTENT_LENGTH, request.readableBytes());
-        httpRequest.setHeader(HttpHeaders.CONTENT_TYPE, "application/x-thrift");
-        httpRequest.setHeader(HttpHeaders.ACCEPT, "application/x-thrift");
-        httpRequest.setHeader(HttpHeaders.USER_AGENT, "Java/Swift-HttpThriftClientChannel");
+        httpRequest.headers().set(HttpHeaders.HOST, hostName);
+        httpRequest.headers().set(HttpHeaders.CONTENT_LENGTH, request.readableBytes());
+        httpRequest.headers().set(HttpHeaders.CONTENT_TYPE, "application/x-thrift");
+        httpRequest.headers().set(HttpHeaders.ACCEPT, "application/x-thrift");
+        httpRequest.headers().set(HttpHeaders.USER_AGENT, "Java/Swift-HttpThriftClientChannel");
 
         if (headerDictionary != null) {
             for (Map.Entry<String, String> entry : headerDictionary.entrySet()) {
-                httpRequest.setHeader(entry.getKey(), entry.getValue());
+                httpRequest.headers().set(entry.getKey(), entry.getValue());
             }
         }
-
-        httpRequest.setContent(request);
 
         return underlyingNettyChannel.write(httpRequest);
     }

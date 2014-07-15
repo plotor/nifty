@@ -15,10 +15,10 @@
  */
 package com.facebook.nifty.core;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -27,10 +27,10 @@ import javax.annotation.concurrent.NotThreadSafe;
  * so that an async client can grab the buffer and send it
  *
  * Allows for reusing the same transport to write multiple messages via
- * {@link com.facebook.nifty.core.TChannelBufferOutputTransport#resetOutputBuffer()}
+ * {@link com.facebook.nifty.core.ByteBufOutputTransport#resetOutputBuffer()}
  */
 @NotThreadSafe
-public class TChannelBufferOutputTransport extends TTransport
+public class ByteBufOutputTransport extends TTransport
 {
     private static final int DEFAULT_MINIMUM_SIZE = 1024;
 
@@ -38,20 +38,23 @@ public class TChannelBufferOutputTransport extends TTransport
     // reclaim some memory by reallocating it with half the current size
     private static final int UNDER_USE_THRESHOLD = 5;
 
-    private ChannelBuffer outputBuffer;
+    private ByteBuf outputBuffer;
     private final int minimumSize;
     private int bufferUnderUsedCounter;
 
-    public TChannelBufferOutputTransport()
+    // TODO(NETTY4): find a way to get a shared allocator
+    private static final PooledByteBufAllocator ALLOCATOR = PooledByteBufAllocator.DEFAULT;
+
+    public ByteBufOutputTransport()
     {
         this.minimumSize = DEFAULT_MINIMUM_SIZE;
-        outputBuffer = ChannelBuffers.dynamicBuffer(this.minimumSize);
+        outputBuffer = ALLOCATOR.buffer(this.minimumSize);
     }
 
-    public TChannelBufferOutputTransport(int minimumSize)
+    public ByteBufOutputTransport(int minimumSize)
     {
         this.minimumSize = Math.min(DEFAULT_MINIMUM_SIZE, minimumSize);
-        outputBuffer = ChannelBuffers.dynamicBuffer(this.minimumSize);
+        outputBuffer = ALLOCATOR.buffer(this.minimumSize);
     }
 
     @Override
@@ -103,14 +106,14 @@ public class TChannelBufferOutputTransport extends TTransport
         }
 
         if (shouldShrinkBuffer()) {
-            outputBuffer = ChannelBuffers.dynamicBuffer(shrunkenSize);
+            outputBuffer = ALLOCATOR.buffer(shrunkenSize);
             bufferUnderUsedCounter = 0;
         } else {
             outputBuffer.clear();
         }
     }
 
-    public ChannelBuffer getOutputBuffer()
+    public ByteBuf getOutputBuffer()
     {
         return outputBuffer;
     }
@@ -134,5 +137,10 @@ public class TChannelBufferOutputTransport extends TTransport
     private int shrinkBufferSize()
     {
         return outputBuffer.capacity() >> 1;
+    }
+
+    public int getWrittenByteCount()
+    {
+        return outputBuffer.writerIndex();
     }
 }

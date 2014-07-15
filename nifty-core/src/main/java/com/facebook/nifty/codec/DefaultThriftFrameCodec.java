@@ -15,11 +15,14 @@
  */
 package com.facebook.nifty.codec;
 
+import com.facebook.nifty.core.ThriftMessage;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
 import org.apache.thrift.protocol.TProtocolFactory;
-import org.jboss.netty.channel.ChannelEvent;
-import org.jboss.netty.channel.ChannelHandlerContext;
 
-public class DefaultThriftFrameCodec implements ThriftFrameCodec
+import java.util.List;
+
+public class DefaultThriftFrameCodec extends ThriftFrameCodec
 {
     private final ThriftFrameDecoder decoder;
     private final ThriftFrameEncoder encoder;
@@ -31,14 +34,14 @@ public class DefaultThriftFrameCodec implements ThriftFrameCodec
     }
 
     @Override
-    public void handleDownstream(ChannelHandlerContext ctx, ChannelEvent e) throws Exception
+    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception
     {
-        encoder.handleDownstream(ctx, e);
+        decoder.decode(ctx, in, out);
     }
 
     @Override
-    public void handleUpstream(ChannelHandlerContext ctx, ChannelEvent e) throws Exception
+    protected void encode(ChannelHandlerContext ctx, ThriftMessage message, ByteBuf out) throws Exception
     {
-        decoder.handleUpstream(ctx, e);
+        encoder.encode(ctx, message, out);
     }
 }

@@ -18,10 +18,10 @@ package com.facebook.nifty.core;
 import com.google.common.base.Strings;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.inject.Inject;
-
-import org.jboss.netty.channel.socket.ServerSocketChannelConfig;
-import org.jboss.netty.channel.socket.nio.NioSocketChannelConfig;
-import org.jboss.netty.util.Timer;
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.socket.ServerSocketChannelConfig;
+import io.netty.channel.socket.SocketChannelConfig;
+import io.netty.util.Timer;
 
 import java.lang.reflect.Proxy;
 import java.util.concurrent.ExecutorService;
@@ -34,9 +34,9 @@ import static java.util.concurrent.Executors.newCachedThreadPool;
  */
 public class NettyServerConfigBuilder extends NettyConfigBuilderBase<NettyServerConfigBuilder>
 {
-    private final NioSocketChannelConfig socketChannelConfig = (NioSocketChannelConfig) Proxy.newProxyInstance(
+    private final SocketChannelConfig socketChannelConfig = (SocketChannelConfig) Proxy.newProxyInstance(
             getClass().getClassLoader(),
-            new Class<?>[]{NioSocketChannelConfig.class},
+            new Class<?>[]{SocketChannelConfig.class},
             new Magic("child.")
     );
     private final ServerSocketChannelConfig serverSocketChannelConfig = (ServerSocketChannelConfig) Proxy.newProxyInstance(
@@ -54,20 +54,20 @@ public class NettyServerConfigBuilder extends NettyConfigBuilderBase<NettyServer
     }
 
     /**
-     * Returns an implementation of {@link NioSocketChannelConfig} which will be applied to all
-     * {@link org.jboss.netty.channel.socket.nio.NioSocketChannel} instances created to manage
-     * connections accepted by the server.
+     * Returns an implementation of {@link io.netty.channel.socket.SocketChannelConfig} which will
+     * be applied to all {@link io.netty.channel.socket.nio.NioSocketChannel} instances created to
+     * manage connections accepted by the server.
      *
-     * @return A mutable {@link NioSocketChannelConfig}
+     * @return A mutable {@link io.netty.channel.socket.SocketChannelConfig}
      */
-    public NioSocketChannelConfig getSocketChannelConfig()
+    public SocketChannelConfig getSocketChannelConfig()
     {
         return socketChannelConfig;
     }
 
     /**
      * Returns an implementation of {@link ServerSocketChannelConfig}
-     * which will be applied to the {@link org.jboss.netty.channel.socket.ServerSocketChannel}
+     * which will be applied to the {@link java.nio.channels.ServerSocketChannel}
      * the server will use to accept connections.
      *
      * @return A mutable {@link ServerSocketChannelConfig}
@@ -86,6 +86,7 @@ public class NettyServerConfigBuilder extends NettyConfigBuilderBase<NettyServer
         int workerThreadCount = getWorkerThreadCount();
 
         return new NettyServerConfig(
+                this,
                 getBootstrapOptions(),
                 timer != null ? timer : new NiftyTimer(threadNamePattern("")),
                 bossExecutor != null ? bossExecutor : buildDefaultBossExecutor(),
@@ -114,5 +115,10 @@ public class NettyServerConfigBuilder extends NettyConfigBuilderBase<NettyServer
     private ThreadFactory renamingThreadFactory(String nameFormat)
     {
         return new ThreadFactoryBuilder().setNameFormat(nameFormat).build();
+    }
+
+    public void applyConfig(ServerBootstrap bootstrap)
+    {
+        // TODO(NETTY4): actually apply config
     }
 }

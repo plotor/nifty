@@ -15,20 +15,20 @@
  */
 package com.facebook.nifty.client;
 
-import com.facebook.nifty.core.TChannelBufferInputTransport;
-import com.facebook.nifty.core.TChannelBufferOutputTransport;
+import com.facebook.nifty.core.ByteBufInputTransport;
+import com.facebook.nifty.core.ByteBufOutputTransport;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Queues;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 import org.apache.thrift.TException;
 import org.apache.thrift.TServiceClient;
 import org.apache.thrift.protocol.TMessage;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -45,8 +45,8 @@ public class TNiftyClientChannelTransport extends TTransport
     private final Class<? extends TServiceClient> clientClass;
     private final NiftyClientChannel channel;
     private final Map<String, Boolean> methodNameToOneWay;
-    private final TChannelBufferOutputTransport requestBufferTransport;
-    private final TChannelBufferInputTransport responseBufferTransport;
+    private final ByteBufOutputTransport requestBufferTransport;
+    private final ByteBufInputTransport responseBufferTransport;
     private final BlockingQueue<ResponseListener> queuedResponses;
 
     public TNiftyClientChannelTransport(
@@ -56,8 +56,8 @@ public class TNiftyClientChannelTransport extends TTransport
         this.channel = channel;
 
         this.methodNameToOneWay = newHashMap();
-        this.requestBufferTransport = new TChannelBufferOutputTransport();
-        this.responseBufferTransport = new TChannelBufferInputTransport(ChannelBuffers.buffer(0));
+        this.requestBufferTransport = new ByteBufOutputTransport();
+        this.responseBufferTransport = new ByteBufInputTransport(PooledByteBufAllocator.DEFAULT.buffer(0));
         this.queuedResponses = Queues.newLinkedBlockingQueue();
     }
 
@@ -92,10 +92,10 @@ public class TNiftyClientChannelTransport extends TTransport
                 // wait for the next queued response to arrive, and point our response transport
                 // to that.
                 ResponseListener listener = queuedResponses.take();
-                ChannelBuffer response = listener.getResponse().get();
+                ByteBuf response = listener.getResponse().get();
 
                 // Ensure the response buffer is not zero-sized
-                checkState(response.readable(), "Received an empty response");
+                checkState(response.isReadable(), "Received an empty response");
 
                 responseBufferTransport.setInputBuffer(response);
             }
@@ -146,7 +146,7 @@ public class TNiftyClientChannelTransport extends TTransport
         boolean isOneWayMethod = false;
 
         // Create a temporary transport wrapping the output buffer, so that we can read the method name for this message
-        TChannelBufferInputTransport requestReadTransport = new TChannelBufferInputTransport(requestBufferTransport.getOutputBuffer().duplicate());
+        ByteBufInputTransport requestReadTransport = new ByteBufInputTransport(requestBufferTransport.getOutputBuffer().duplicate());
         TProtocol protocol = channel.getProtocolFactory().getOutputProtocolFactory().getProtocol(requestReadTransport);
         TMessage message = protocol.readMessageBegin();
         String methodName = message.name;
@@ -186,7 +186,7 @@ public class TNiftyClientChannelTransport extends TTransport
 
     private static class ResponseListener implements NiftyClientChannel.Listener
     {
-        private final SettableFuture<ChannelBuffer> response;
+        private final SettableFuture<ByteBuf> response;
 
         private ResponseListener()
         {
@@ -199,7 +199,7 @@ public class TNiftyClientChannelTransport extends TTransport
         }
 
         @Override
-        public void onResponseReceived(ChannelBuffer response)
+        public void onResponseReceived(ByteBuf response)
         {
             this.response.set(response);
         }
@@ -210,7 +210,7 @@ public class TNiftyClientChannelTransport extends TTransport
             response.setException(new TTransportException(TTransportException.UNKNOWN, cause));
         }
 
-        public ListenableFuture<ChannelBuffer> getResponse()
+        public ListenableFuture<ByteBuf> getResponse()
         {
             return response;
         }

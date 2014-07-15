@@ -15,15 +15,29 @@
  */
 package com.facebook.nifty.core;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Collections2;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
 import com.google.inject.ProvidedBy;
-import org.jboss.netty.util.Timer;
+import io.netty.channel.ChannelConfig;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.util.Timer;
 
+import javax.annotation.Nullable;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 @ProvidedBy(DefaultNettyServerConfigProvider.class)
 public class NettyServerConfig
 {
+
+    private final NettyServerConfigBuilder builder;
     private final Map<String, Object> bootstrapOptions;
     private final Timer timer;
     private final ExecutorService bossExecutor;
@@ -31,13 +45,15 @@ public class NettyServerConfig
     private final ExecutorService workerExecutor;
     private final int workerThreadCount;
 
-    public NettyServerConfig(Map<String, Object> bootstrapOptions,
+    public NettyServerConfig(NettyServerConfigBuilder builder,
+                             Map<String, Object> bootstrapOptions,
                              Timer timer,
                              ExecutorService bossExecutor,
                              int bossThreadCount,
                              ExecutorService workerExecutor,
                              int workerThreadCount)
     {
+        this.builder = builder;
         this.bootstrapOptions = bootstrapOptions;
         this.timer = timer;
         this.bossExecutor = bossExecutor;
@@ -76,8 +92,34 @@ public class NettyServerConfig
         return workerThreadCount;
     }
 
+    public NettyServerConfigBuilder getBuilder() { return builder; }
+
     public static NettyServerConfigBuilder newBuilder()
     {
         return new NettyServerConfigBuilder();
+    }
+
+    public Map<String, Object> getChannelOptions()
+    {
+        return Maps.filterKeys(getBootstrapOptions(), new Predicate<String>()
+        {
+            @Override
+            public boolean apply(@Nullable String input)
+            {
+                return input != null && !input.startsWith("child.");
+            }
+        });
+    }
+
+    public Map<String, Object> getChildChannelOptions()
+    {
+        return Maps.filterKeys(getBootstrapOptions(), new Predicate<String>()
+        {
+            @Override
+            public boolean apply(@Nullable String input)
+            {
+                return input != null && input.startsWith("child.");
+            }
+        });
     }
 }

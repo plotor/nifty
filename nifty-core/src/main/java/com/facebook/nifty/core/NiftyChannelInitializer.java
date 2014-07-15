@@ -16,21 +16,10 @@
 package com.facebook.nifty.core;
 
 import io.netty.channel.Channel;
-import io.netty.util.AttributeKey;
+import io.netty.channel.ChannelInitializer;
 
-import javax.management.Attribute;
-
-public class ConnectionContexts
+public abstract class NiftyChannelInitializer<C extends Channel> extends ChannelInitializer<C>
 {
-    private static final AttributeKey<ConnectionContext> CONNECTION_CONTEXT = AttributeKey.valueOf("Thrift.ConnectionContext");
-
-    public static ConnectionContext createContext(Channel channel) {
-        NiftyConnectionContext context = new NiftyConnectionContext();
-        channel.attr(CONNECTION_CONTEXT).set(context);
-        return context;
-    }
-
-    public static ConnectionContext getContext(Channel channel) {
-        return channel.attr(CONNECTION_CONTEXT).get();
-    }
+    @Override
+    public abstract void initChannel(C channel) throws Exception;
 }

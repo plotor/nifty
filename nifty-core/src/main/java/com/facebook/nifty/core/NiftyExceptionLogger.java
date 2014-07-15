@@ -15,26 +15,23 @@
  */
 package com.facebook.nifty.core;
 
-import org.jboss.netty.channel.ChannelEvent;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.handler.logging.LoggingHandler;
+import io.netty.channel.ChannelHandlerAdapter;
+import io.netty.channel.ChannelHandlerContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.SocketAddress;
 
-public class NiftyExceptionLogger extends LoggingHandler
+public class NiftyExceptionLogger extends ChannelHandlerAdapter
 {
     private static final Logger log = LoggerFactory.getLogger(NiftyExceptionLogger.class);
 
     @Override
-    public void log(ChannelEvent event)
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception
     {
-        if (event instanceof ExceptionEvent) {
-            ExceptionEvent exceptionEvent = (ExceptionEvent) event;
-            SocketAddress remoteAddress = exceptionEvent.getChannel().getRemoteAddress();
-            log.error("Exception triggered on channel connected to " + remoteAddress,
-                      exceptionEvent.getCause());
-        }
+        SocketAddress remoteAddress = ctx.channel().remoteAddress();
+        log.error("Exception triggered on channel connected to " + remoteAddress, cause);
+
+        super.exceptionCaught(ctx, cause);
     }
 }

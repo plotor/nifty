@@ -17,6 +17,20 @@ package com.facebook.nifty.core;
 
 import com.facebook.nifty.codec.DefaultThriftFrameDecoder;
 import com.facebook.nifty.codec.ThriftFrameDecoder;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.AbstractChannel;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelConfig;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelMetadata;
+import io.netty.channel.ChannelOutboundBuffer;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.DefaultChannelConfig;
+import io.netty.channel.EventLoop;
+import io.netty.channel.local.LocalChannel;
+import io.netty.channel.nio.NioEventLoopGroup;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TField;
@@ -26,23 +40,13 @@ import org.apache.thrift.protocol.TStruct;
 import org.apache.thrift.protocol.TType;
 import org.apache.thrift.transport.TFramedTransport;
 import org.easymock.EasyMock;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.AbstractChannelSink;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelEvent;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.DefaultChannelConfig;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class TestThriftFrameDecoder
@@ -58,7 +62,7 @@ public class TestThriftFrameDecoder
     @Test
     public void testDecodeEmptyBuffer() throws Exception
     {
-        Channels.fireMessageReceived(channel, ChannelBuffers.EMPTY_BUFFER);
+        sendMessage(channel, Unpooled.EMPTY_BUFFER);
 
         Assert.assertEquals(exceptionsCaught.get(), 0);
         Assert.assertEquals(messagesReceived.get(), 0);
@@ -68,12 +72,12 @@ public class TestThriftFrameDecoder
     @Test
     public void testDecodeUnframedMessages() throws Exception
     {
-        TChannelBufferOutputTransport transport = new TChannelBufferOutputTransport();
+        final ByteBufOutputTransport transport = new ByteBufOutputTransport();
         TBinaryProtocol protocol = new TBinaryProtocol(transport);
 
         writeTestMessages(protocol, 2);
 
-        Channels.fireMessageReceived(channel, transport.getOutputBuffer());
+        sendMessage(channel, transport.getOutputBuffer());
 
         Assert.assertEquals(exceptionsCaught.get(), 0);
         Assert.assertEquals(messagesReceived.get(), 2);
@@ -83,12 +87,12 @@ public class TestThriftFrameDecoder
     @Test
     public void testDecodeFramedMessages() throws Exception
     {
-        TChannelBufferOutputTransport transport = new TChannelBufferOutputTransport();
+        final ByteBufOutputTransport transport = new ByteBufOutputTransport();
         TBinaryProtocol protocol = new TBinaryProtocol(new TFramedTransport(transport));
 
         writeTestMessages(protocol, 2);
 
-        Channels.fireMessageReceived(channel, transport.getOutputBuffer());
+        sendMessage(channel, transport.getOutputBuffer());
 
         Assert.assertEquals(messagesReceived.get(), 2);
     }
@@ -97,12 +101,12 @@ public class TestThriftFrameDecoder
     @Test
     public void testDecodeChunkedUnframedMessages() throws Exception
     {
-        TChannelBufferOutputTransport transport = new TChannelBufferOutputTransport();
+        final ByteBufOutputTransport transport = new ByteBufOutputTransport();
         TBinaryProtocol protocol = new TBinaryProtocol(transport);
 
         writeTestMessages(protocol, 3);
 
-        sendMessagesInChunks(channel, transport, MESSAGE_CHUNK_SIZE);
+        sendMessagesInChunks(channel, transport.getOutputBuffer(), MESSAGE_CHUNK_SIZE);
 
         Assert.assertEquals(messagesReceived.get(), 3);
     }
@@ -111,25 +115,49 @@ public class TestThriftFrameDecoder
     @Test
     public void testDecodeChunkedFramedMessages() throws Exception
     {
-        TChannelBufferOutputTransport transport = new TChannelBufferOutputTransport();
+        ByteBufOutputTransport transport = new ByteBufOutputTransport();
         TBinaryProtocol protocol = new TBinaryProtocol(new TFramedTransport(transport));
 
         writeTestMessages(protocol, 3);
+        int totalSize = transport.getOutputBuffer().readableBytes();
 
-        sendMessagesInChunks(channel, transport, MESSAGE_CHUNK_SIZE);
+        sendMessagesInChunks(channel, transport.getOutputBuffer(), totalSize / 7);
 
         Assert.assertEquals(messagesReceived.get(), 3);
     }
 
-    private void sendMessagesInChunks(Channel channel,
-                                      TChannelBufferOutputTransport transport,
-                                      int chunkSize)
+    private void sendMessage(final Channel channel,
+                             final ByteBuf message) throws ExecutionException, InterruptedException
     {
-        ChannelBuffer buffer = transport.getOutputBuffer();
-        while (buffer.readable()) {
-            ChannelBuffer chunk = buffer.readSlice(Math.min(chunkSize, buffer.readableBytes()));
-            Channels.fireMessageReceived(channel, chunk);
-        }
+        channel.eventLoop().submit(new Runnable() {
+            @Override
+            public void run()
+            {
+                channel.pipeline().fireChannelRead(message);
+            }
+        }).get();
+    }
+
+    private void sendMessagesInChunks(final Channel channel,
+                                      final ByteBuf message,
+                                      final int chunkSize) throws ExecutionException, InterruptedException
+    {
+        channel.eventLoop().submit(new Runnable() {
+            @Override
+            public void run()
+            {
+                ByteBuf buffer = message;
+                while (buffer.readableBytes() > 0) {
+                    // TODO(NETTY4): see if this should work, and file a bug if it should
+                    //final ByteBuf chunk = buffer.readSlice(Math.min(chunkSize, buffer.readableBytes()));
+
+                    final ByteBuf chunk = buffer.copy(buffer.readerIndex(), Math.min(chunkSize, buffer.readableBytes()));
+                    buffer.skipBytes(chunk.readableBytes());
+
+                    channel.pipeline().fireChannelRead(chunk);
+                }
+            }
+        }).get();
     }
 
     private void writeTestMessages(TBinaryProtocol protocol, int count)
@@ -167,42 +195,28 @@ public class TestThriftFrameDecoder
     {
         ThriftFrameDecoder decoder = new DefaultThriftFrameDecoder(MAX_FRAME_SIZE,
                                                                    new TBinaryProtocol.Factory());
-        ChannelPipeline pipeline = Channels.pipeline(
-                decoder,
-                new SimpleChannelUpstreamHandler()
-                {
-                    @Override
-                    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e)
-                            throws Exception
-                    {
-                        messagesReceived.incrementAndGet();
-                        super.messageReceived(ctx, e);
-                    }
-
-                    @Override
-                    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception
-                    {
-                        exceptionsCaught.incrementAndGet();
-                        super.exceptionCaught(ctx, e);
-                    }
-                }
-        );
-
-        InetSocketAddress remoteAddress = new InetSocketAddress("localhost", 1234);
-
         exceptionsCaught = new AtomicInteger(0);
         messagesReceived = new AtomicInteger(0);
 
-        channel = EasyMock.createMock(Channel.class);
-        EasyMock.expect(channel.getRemoteAddress()).andReturn(remoteAddress).anyTimes();
-        EasyMock.expect(channel.getPipeline()).andReturn(pipeline).anyTimes();
-        EasyMock.expect(channel.getConfig()).andReturn(new DefaultChannelConfig()).anyTimes();
-        EasyMock.replay(channel);
+        channel = new LocalChannel();
+        new NioEventLoopGroup(1).next().register(channel);
 
-        pipeline.attach(channel, new AbstractChannelSink()
-        {
-            @Override
-            public void eventSunk(ChannelPipeline pipeline, ChannelEvent e) { return; }
-        });
+        channel.pipeline().addLast(
+                decoder,
+                new ChannelInboundHandlerAdapter()
+                {
+                    @Override
+                    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception
+                    {
+                        messagesReceived.incrementAndGet();
+                    }
+
+                    @Override
+                    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception
+                    {
+                        exceptionsCaught.incrementAndGet();
+                    }
+                }
+        );
     }
 }

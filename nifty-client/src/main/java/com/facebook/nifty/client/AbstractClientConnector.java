@@ -18,8 +18,7 @@ package com.facebook.nifty.client;
 import com.facebook.nifty.duplex.TDuplexProtocolFactory;
 import com.google.common.net.HostAndPort;
 import org.apache.thrift.protocol.TBinaryProtocol;
-import org.jboss.netty.bootstrap.ClientBootstrap;
-import org.jboss.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFuture;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;

@@ -21,8 +21,8 @@ import com.google.common.base.Strings;
 import com.google.common.net.HostAndPort;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.inject.Inject;
-import org.jboss.netty.channel.socket.nio.NioSocketChannelConfig;
-import org.jboss.netty.util.Timer;
+import io.netty.channel.socket.SocketChannelConfig;
+import io.netty.util.Timer;
 
 import java.lang.reflect.Proxy;
 import java.util.concurrent.ExecutorService;
@@ -37,9 +37,9 @@ public class NettyClientConfigBuilder extends NettyConfigBuilderBase<NettyClient
 {
     private HostAndPort defaultSocksProxyAddress = null;
 
-    private final NioSocketChannelConfig socketChannelConfig = (NioSocketChannelConfig) Proxy.newProxyInstance(
+    private final SocketChannelConfig socketChannelConfig = (SocketChannelConfig) Proxy.newProxyInstance(
             getClass().getClassLoader(),
-            new Class<?>[]{NioSocketChannelConfig.class},
+            new Class<?>[]{SocketChannelConfig.class},
             new Magic("")
     );
 
@@ -53,13 +53,13 @@ public class NettyClientConfigBuilder extends NettyConfigBuilderBase<NettyClient
     }
 
     /**
-     * Returns an implementation of {@link NioSocketChannelConfig} which will be applied to all
-     * {@link org.jboss.netty.channel.socket.nio.NioSocketChannel} instances created for client
-     * connections.
+     * Returns an implementation of {@link io.netty.channel.socket.SocketChannelConfig} which will
+     * be applied to all {@link io.netty.channel.socket.nio.NioSocketChannel} instances created for
+     * client connections.
      *
-     * @return A mutable {@link NioSocketChannelConfig}
+     * @return A mutable {@link io.netty.channel.socket.SocketChannelConfig}
      */
-    public NioSocketChannelConfig getSocketChannelConfig()
+    public SocketChannelConfig getSocketChannelConfig()
     {
         return socketChannelConfig;
     }
@@ -80,31 +80,16 @@ public class NettyClientConfigBuilder extends NettyConfigBuilderBase<NettyClient
     public NettyClientConfig build()
     {
         Timer timer = getTimer();
-        ExecutorService bossExecutor = getBossExecutor();
-        int bossThreadCount = getBossThreadCount();
-        ExecutorService workerExecutor = getWorkerExecutor();
         int workerThreadCount = getWorkerThreadCount();
 
         return new NettyClientConfig(
                 getBootstrapOptions(),
                 defaultSocksProxyAddress,
                 timer != null ? timer : new NiftyTimer(threadNamePattern("")),
-                bossExecutor != null ? bossExecutor : buildDefaultBossExecutor(),
-                bossThreadCount,
-                workerExecutor != null ? workerExecutor : buildDefaultWorkerExecutor(),
                 workerThreadCount
         );
     }
 
-    private ExecutorService buildDefaultBossExecutor()
-    {
-        return newCachedThreadPool(renamingDaemonThreadFactory(threadNamePattern("-boss-%s")));
-    }
-
-    private ExecutorService buildDefaultWorkerExecutor()
-    {
-        return newCachedThreadPool(renamingDaemonThreadFactory(threadNamePattern("-worker-%s")));
-    }
 
     private String threadNamePattern(String suffix)
     {

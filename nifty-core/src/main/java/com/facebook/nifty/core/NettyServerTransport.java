@@ -15,28 +15,28 @@
  */
 package com.facebook.nifty.core;
 
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.group.ChannelGroup;
+import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.channel.nio.NioEventLoop;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
+import io.netty.util.concurrent.DefaultEventExecutorGroup;
+import io.netty.util.concurrent.DefaultThreadFactory;
+import io.netty.util.concurrent.EventExecutor;
 import org.apache.thrift.protocol.TProtocolFactory;
-import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.ServerChannelFactory;
-import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
-import org.jboss.netty.channel.group.ChannelGroup;
-import org.jboss.netty.channel.group.DefaultChannelGroup;
-import org.jboss.netty.channel.socket.nio.NioServerBossPool;
-import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.jboss.netty.channel.socket.nio.NioWorkerPool;
-import org.jboss.netty.handler.timeout.IdleStateHandler;
-import org.jboss.netty.logging.InternalLoggerFactory;
-import org.jboss.netty.logging.Slf4JLoggerFactory;
-import org.jboss.netty.util.ExternalResourceReleasable;
-import org.jboss.netty.util.ThreadNameDeterminer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,26 +46,25 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static com.facebook.nifty.core.NiftyChannelGroups.CHANNEL_GROUP_EVENT_EXECUTOR;
 
 /**
  * A core channel the decode framed Thrift message, dispatches to the TProcessor given
  * and then encode message back to Thrift frame.
  */
-public class NettyServerTransport implements ExternalResourceReleasable
+public class NettyServerTransport
 {
     private static final Logger log = LoggerFactory.getLogger(NettyServerTransport.class);
 
     private final int port;
-    private final ChannelPipelineFactory pipelineFactory;
     private static final int NO_WRITER_IDLE_TIMEOUT = 0;
     private static final int NO_ALL_IDLE_TIMEOUT = 0;
     private ServerBootstrap bootstrap;
     private final ChannelGroup allChannels;
-    private ExecutorService bossExecutor;
-    private ExecutorService ioWorkerExecutor;
-    private ServerChannelFactory channelFactory;
     private Channel serverChannel;
     private final ThriftServerDef def;
     private final NettyServerConfig nettyServerConfig;
@@ -73,7 +72,7 @@ public class NettyServerTransport implements ExternalResourceReleasable
 
     public NettyServerTransport(final ThriftServerDef def)
     {
-        this(def, NettyServerConfig.newBuilder().build(), new DefaultChannelGroup());
+        this(def, NettyServerConfig.newBuilder().build(), new DefaultChannelGroup(CHANNEL_GROUP_EVENT_EXECUTOR));
     }
 
     @Inject
@@ -86,70 +85,68 @@ public class NettyServerTransport implements ExternalResourceReleasable
         this.nettyServerConfig = nettyServerConfig;
         this.port = def.getServerPort();
         this.allChannels = allChannels;
+        this.channelStatistics = new ChannelStatistics(allChannels);
+    }
+
+    public void start() throws InterruptedException
+    {
+        start(new ServerBootstrap().group(new NioEventLoopGroup(1, new DefaultThreadFactory("nifty-server-acceptor-pool")),
+                                          new NioEventLoopGroup(0, new DefaultThreadFactory("nifty-server-ioworker-pool"))));
+    }
+
+    public void start(EventLoopGroup bossGroup, EventLoopGroup ioWorkerGroup) throws InterruptedException
+    {
+        start(new ServerBootstrap().group(bossGroup, ioWorkerGroup));
+    }
+
+    public void start(ServerBootstrap serverBootstrap) throws InterruptedException
+    {
         // connectionLimiter must be instantiated exactly once (and thus outside the pipeline factory)
         final ConnectionLimiter connectionLimiter = new ConnectionLimiter(def.getMaxConnections());
 
-        this.channelStatistics = new ChannelStatistics(allChannels);
+        this.bootstrap = serverBootstrap;
 
-        this.pipelineFactory = new ChannelPipelineFactory()
-        {
+        nettyServerConfig.getBuilder().applyConfig(bootstrap);
+
+        bootstrap.channel(NioServerSocketChannel.class);
+
+        bootstrap.childHandler(new ChannelInitializer<NioSocketChannel>() {
             @Override
-            public ChannelPipeline getPipeline()
-                    throws Exception
+            protected void initChannel(NioSocketChannel channel) throws Exception
             {
-                ChannelPipeline cp = Channels.pipeline();
+                ChannelPipeline cp = channel.pipeline();
                 TProtocolFactory inputProtocolFactory = def.getDuplexProtocolFactory().getInputProtocolFactory();
-                NiftySecurityHandlers securityHandlers = def.getSecurityFactory().getSecurityHandlers(def, nettyServerConfig);
+                // TODO: re-nable this
+                //NiftySecurityHandlers securityHandlers = def.getSecurityFactory().getSecurityHandlers(def, nettyServerConfig);
                 cp.addLast("connectionContext", new ConnectionContextHandler());
                 cp.addLast("connectionLimiter", connectionLimiter);
                 cp.addLast(ChannelStatistics.NAME, channelStatistics);
-                cp.addLast("encryptionHandler", securityHandlers.getEncryptionHandler());
+                // TODO(NETTY4): make auth & encryption work again
+                //cp.addLast("encryptionHandler", securityHandlers.getEncryptionHandler());
                 cp.addLast("frameCodec", def.getThriftFrameCodecFactory().create(def.getMaxFrameSize(),
                                                                                  inputProtocolFactory));
                 if (def.getClientIdleTimeout() != null) {
                     // Add handlers to detect idle client connections and disconnect them
-                    cp.addLast("idleTimeoutHandler", new IdleStateHandler(nettyServerConfig.getTimer(),
-                                                                          def.getClientIdleTimeout().toMillis(),
-                                                                          NO_WRITER_IDLE_TIMEOUT,
-                                                                          NO_ALL_IDLE_TIMEOUT,
-                                                                          TimeUnit.MILLISECONDS));
-                    cp.addLast("idleDisconnectHandler", new IdleDisconnectHandler());
+                    cp.addLast("idleDisconnectHandler", new IdleStateHandler(def.getClientIdleTimeout().toMillis(),
+                                                                             NO_WRITER_IDLE_TIMEOUT,
+                                                                             NO_ALL_IDLE_TIMEOUT,
+                                                                             TimeUnit.MILLISECONDS) {
+                        @Override
+                        protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt) throws Exception
+                        {
+                            ctx.channel().close();
+                        }
+                    });
                 }
 
-                cp.addLast("authHandler", securityHandlers.getAuthenticationHandler());
+                //cp.addLast("authHandler", securityHandlers.getAuthenticationHandler());
                 cp.addLast("dispatcher", new NiftyDispatcher(def, nettyServerConfig.getTimer()));
                 cp.addLast("exceptionLogger", new NiftyExceptionLogger());
-                return cp;
             }
-        };
-    }
+        });
 
-    public void start()
-    {
-        bossExecutor = nettyServerConfig.getBossExecutor();
-        int bossThreadCount = nettyServerConfig.getBossThreadCount();
-        ioWorkerExecutor = nettyServerConfig.getWorkerExecutor();
-        int ioWorkerThreadCount = nettyServerConfig.getWorkerThreadCount();
-
-        channelFactory = new NioServerSocketChannelFactory(new NioServerBossPool(bossExecutor, bossThreadCount, ThreadNameDeterminer.CURRENT),
-                                                           new NioWorkerPool(ioWorkerExecutor, ioWorkerThreadCount, ThreadNameDeterminer.CURRENT));
-        start(channelFactory);
-    }
-
-    public void start(ServerChannelFactory serverChannelFactory)
-    {
-        if (!(InternalLoggerFactory.getDefaultFactory() instanceof Slf4JLoggerFactory)) {
-            log.warn("Nifty always logs to slf4j, but netty is currently configured to use a " +
-                     "different logging implementation. To correct this call " +
-                     "InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory()) " +
-                     "during your server's startup");
-        }
-
-        bootstrap = new ServerBootstrap(serverChannelFactory);
-        bootstrap.setOptions(nettyServerConfig.getBootstrapOptions());
-        bootstrap.setPipelineFactory(pipelineFactory);
-        serverChannel = bootstrap.bind(new InetSocketAddress(port));
-        SocketAddress actualSocket = serverChannel.getLocalAddress();
+        serverChannel = bootstrap.bind(new InetSocketAddress(port)).sync().channel();
+        SocketAddress actualSocket = serverChannel.localAddress();
         if (actualSocket instanceof InetSocketAddress) {
             int actualPort = ((InetSocketAddress) actualSocket).getPort();
             log.info("started transport {}:{} (:{})", def.getName(), actualPort, port);
@@ -187,12 +184,7 @@ public class NettyServerTransport implements ExternalResourceReleasable
         // If the channelFactory was created by us, we should also clean it up. If the
         // channelFactory was passed in by NiftyBootstrap, then it may be shared so don't clean
         // it up.
-        if (channelFactory != null) {
-            ShutdownUtil.shutdownChannelFactory(channelFactory,
-                                                bossExecutor,
-                                                ioWorkerExecutor,
-                                                allChannels);
-        }
+        ShutdownUtil.shutdownChannelFactory(bootstrap, allChannels);
     }
 
     public Channel getServerChannel()
@@ -200,13 +192,8 @@ public class NettyServerTransport implements ExternalResourceReleasable
         return serverChannel;
     }
 
-    @Override
-    public void releaseExternalResources()
-    {
-        bootstrap.releaseExternalResources();
-    }
-
-    private static class ConnectionLimiter extends SimpleChannelUpstreamHandler
+    @ChannelHandler.Sharable
+    private static class ConnectionLimiter extends ChannelInboundHandlerAdapter
     {
         private final AtomicInteger numConnections;
         private final int maxConnections;
@@ -218,29 +205,29 @@ public class NettyServerTransport implements ExternalResourceReleasable
         }
 
         @Override
-        @SuppressWarnings("PMD.CollapsibleIfStatements")
-        public void channelOpen(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception
+        public void channelRegistered(ChannelHandlerContext ctx) throws Exception
         {
             if (maxConnections > 0) {
                 if (numConnections.incrementAndGet() > maxConnections) {
-                    ctx.getChannel().close();
+                    ctx.channel().close();
                     // numConnections will be decremented in channelClosed
                     log.info("Accepted connection above limit ({}). Dropping.", maxConnections);
                 }
             }
-            super.channelOpen(ctx, e);
+
+            super.channelRegistered(ctx);
         }
 
         @Override
-        @SuppressWarnings("PMD.CollapsibleIfStatements")
-        public void channelClosed(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception
+        public void channelUnregistered(ChannelHandlerContext ctx) throws Exception
         {
             if (maxConnections > 0) {
                 if (numConnections.decrementAndGet() < 0) {
                     log.error("BUG in ConnectionLimiter");
                 }
             }
-            super.channelClosed(ctx, e);
+
+            super.channelUnregistered(ctx);
         }
     }
 

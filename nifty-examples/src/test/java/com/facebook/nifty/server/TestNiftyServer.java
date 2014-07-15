@@ -19,20 +19,23 @@ import com.facebook.nifty.client.FramedClientConnector;
 import com.facebook.nifty.client.NiftyClient;
 import com.facebook.nifty.core.NettyServerConfig;
 import com.facebook.nifty.core.NettyServerTransport;
+import com.facebook.nifty.core.NiftyChannelGroups;
 import com.facebook.nifty.core.RequestContext;
 import com.facebook.nifty.core.RequestContexts;
 import com.facebook.nifty.core.ThriftServerDefBuilder;
 import com.facebook.nifty.test.LogEntry;
 import com.facebook.nifty.test.ResultCode;
 import com.facebook.nifty.test.scribe;
+import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.channel.nio.NioEventLoop;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.channel.group.DefaultChannelGroup;
-import org.jboss.netty.logging.InternalLoggerFactory;
-import org.jboss.netty.logging.Slf4JLoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -43,6 +46,8 @@ import org.testng.annotations.Test;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.List;
+
+import static com.facebook.nifty.core.NiftyChannelGroups.CHANNEL_GROUP_EVENT_EXECUTOR;
 
 public class TestNiftyServer
 {
@@ -65,18 +70,18 @@ public class TestNiftyServer
             server.stop();
         }
     }
-    private void startServer()
+    private void startServer() throws InterruptedException
     {
         startServer(getThriftServerDefBuilder());
     }
 
-    private void startServer(final ThriftServerDefBuilder thriftServerDefBuilder)
+    private void startServer(final ThriftServerDefBuilder thriftServerDefBuilder) throws InterruptedException
     {
         server = new NettyServerTransport(thriftServerDefBuilder.build(),
                                           NettyServerConfig.newBuilder().build(),
-                                          new DefaultChannelGroup());
+                                          new DefaultChannelGroup(CHANNEL_GROUP_EVENT_EXECUTOR));
         server.start();
-        port = ((InetSocketAddress)server.getServerChannel().getLocalAddress()).getPort();
+        port = ((InetSocketAddress)server.getServerChannel().localAddress()).getPort();
     }
 
     private ThriftServerDefBuilder getThriftServerDefBuilder()

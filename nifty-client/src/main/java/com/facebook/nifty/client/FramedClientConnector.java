@@ -15,16 +15,13 @@
  */
 package com.facebook.nifty.client;
 
+import com.facebook.nifty.core.NiftyChannelInitializer;
 import com.facebook.nifty.duplex.TDuplexProtocolFactory;
 import com.google.common.net.HostAndPort;
-
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.handler.codec.frame.LengthFieldBasedFrameDecoder;
-import org.jboss.netty.handler.codec.frame.LengthFieldPrepender;
-import org.jboss.netty.util.Timer;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelPipeline;
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.codec.LengthFieldPrepender;
 
 import java.net.InetSocketAddress;
 
@@ -69,20 +66,21 @@ public class FramedClientConnector extends AbstractClientConnector<FramedClientC
     public FramedClientChannel newThriftClientChannel(Channel nettyChannel, NettyClientConfig clientConfig)
     {
         FramedClientChannel channel = new FramedClientChannel(nettyChannel, clientConfig.getTimer(), getProtocolFactory());
-        ChannelPipeline cp = nettyChannel.getPipeline();
+        ChannelPipeline cp = nettyChannel.pipeline();
         TimeoutHandler.addToPipeline(cp);
         cp.addLast("thriftHandler", channel);
         return channel;
     }
 
     @Override
-    public ChannelPipelineFactory newChannelPipelineFactory(final int maxFrameSize, NettyClientConfig clientConfig)
+    public NiftyChannelInitializer<Channel> newChannelInitializer(final int maxFrameSize, NettyClientConfig clientConfig)
     {
-        return new ChannelPipelineFactory() {
+        return new NiftyChannelInitializer<Channel>()
+        {
             @Override
-            public ChannelPipeline getPipeline()
-                    throws Exception {
-                ChannelPipeline cp = Channels.pipeline();
+            public void initChannel(Channel channel) throws Exception
+            {
+                ChannelPipeline cp = channel.pipeline();
                 TimeoutHandler.addToPipeline(cp);
                 cp.addLast("frameEncoder", new LengthFieldPrepender(LENGTH_FIELD_LENGTH));
                 cp.addLast(
@@ -93,7 +91,6 @@ public class FramedClientConnector extends AbstractClientConnector<FramedClientC
                                 LENGTH_FIELD_LENGTH,
                                 LENGTH_ADJUSTMENT,
                                 INITIAL_BYTES_TO_STRIP));
-                return cp;
             }
         };
     }

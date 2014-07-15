@@ -15,51 +15,202 @@
  */
 package com.facebook.nifty.client.socks;
 
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.DefaultChannelFuture;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelPromise;
+import io.netty.channel.DefaultChannelPromise;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
+
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * A channel future that allow channel to be set at a later time.
  */
-public class SettableChannelFuture extends DefaultChannelFuture
+public class SettableChannelFuture implements ChannelPromise
 {
-    private Channel settableChannel = null;
-    private boolean channelIsSet = false;
+    // TODO(NETTY4): get rid of thread creation here
+    private final ChannelPromise delegate = new DefaultChannelPromise(null, new NioEventLoopGroup(1).next());
+    private Channel settableChannel;
 
-    public SettableChannelFuture()
+    public synchronized void setChannel(Channel channel)
     {
-        super(null, false);
-    }
-
-    public void setChannel(Channel channel)
-    {
-        if (!channelIsSet) {
-            this.settableChannel = channel;
-            this.channelIsSet = true;
-        }
+        this.settableChannel = channel;
     }
 
     @Override
-    public Channel getChannel()
+    public synchronized Channel channel()
     {
-        return this.settableChannel;
+        return settableChannel;
     }
 
     @Override
-    public boolean setFailure(Throwable cause)
+    public ChannelPromise setSuccess(Void result)
     {
-        if (!this.channelIsSet) {
-            throw new IllegalStateException("channel not set yet !");
-        }
-        return super.setFailure(cause);
+        return delegate.setSuccess(result);
     }
 
     @Override
-    public boolean setSuccess()
+    public ChannelPromise setSuccess()
     {
-        if (!this.channelIsSet) {
-            throw new IllegalStateException("channel not set yet !");
-        }
-        return super.setSuccess();
+        return delegate.setSuccess();
+    }
+
+    @Override
+    public boolean trySuccess()
+    {
+        return delegate.trySuccess();
+    }
+
+    @Override
+    public ChannelPromise setFailure(Throwable cause)
+    {
+        return delegate.setFailure(cause);
+    }
+
+    @Override
+    public ChannelPromise addListener(GenericFutureListener<? extends Future<? super Void>> listener)
+    {
+        return delegate.addListener(listener);
+    }
+
+    @Override
+    public ChannelPromise addListeners(GenericFutureListener<? extends Future<? super Void>>... listeners)
+    {
+        return delegate.addListeners(listeners);
+    }
+
+    @Override
+    public ChannelPromise removeListener(GenericFutureListener<? extends Future<? super Void>> listener)
+    {
+        return delegate.removeListener(listener);
+    }
+
+    @Override
+    public ChannelPromise removeListeners(GenericFutureListener<? extends Future<? super Void>>... listeners)
+    {
+        return delegate.removeListeners(listeners);
+    }
+
+    @Override
+    public ChannelPromise sync() throws InterruptedException
+    {
+        return delegate.sync();
+    }
+
+    @Override
+    public ChannelPromise syncUninterruptibly()
+    {
+        return delegate.syncUninterruptibly();
+    }
+
+    @Override
+    public ChannelPromise await() throws InterruptedException
+    {
+        return delegate.await();
+    }
+
+    @Override
+    public ChannelPromise awaitUninterruptibly()
+    {
+        return delegate.awaitUninterruptibly();
+    }
+
+    @Override
+    public boolean isSuccess()
+    {
+        return delegate.isSuccess();
+    }
+
+    @Override
+    public boolean isCancellable()
+    {
+        return delegate.isCancellable();
+    }
+
+    @Override
+    public Throwable cause()
+    {
+        return delegate.cause();
+    }
+
+    @Override
+    public boolean await(long timeout, TimeUnit unit) throws InterruptedException
+    {
+        return delegate.await(timeout, unit);
+    }
+
+    @Override
+    public boolean await(long timeoutMillis) throws InterruptedException
+    {
+        return delegate.await(timeoutMillis);
+    }
+
+    @Override
+    public boolean awaitUninterruptibly(long timeout, TimeUnit unit)
+    {
+        return delegate.awaitUninterruptibly(timeout, unit);
+    }
+
+    @Override
+    public boolean awaitUninterruptibly(long timeoutMillis)
+    {
+        return delegate.awaitUninterruptibly(timeoutMillis);
+    }
+
+    @Override
+    public Void getNow()
+    {
+        return delegate.getNow();
+    }
+
+    @Override
+    public boolean cancel(boolean mayInterruptIfRunning)
+    {
+        return delegate.cancel(mayInterruptIfRunning);
+    }
+
+    @Override
+    public boolean isCancelled()
+    {
+        return delegate.isCancelled();
+    }
+
+    @Override
+    public boolean isDone()
+    {
+        return delegate.isDone();
+    }
+
+    @Override
+    public Void get() throws InterruptedException, ExecutionException
+    {
+        return delegate.get();
+    }
+
+    @Override
+    public Void get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
+    {
+        return delegate.get(timeout, unit);
+    }
+
+    @Override
+    public boolean trySuccess(Void result)
+    {
+        return delegate.trySuccess(result);
+    }
+
+    @Override
+    public boolean tryFailure(Throwable cause)
+    {
+        return delegate.tryFailure(cause);
+    }
+
+    @Override
+    public boolean setUncancellable()
+    {
+        return delegate.setUncancellable();
     }
 }

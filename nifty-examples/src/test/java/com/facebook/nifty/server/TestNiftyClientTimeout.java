@@ -24,8 +24,9 @@ import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import io.airlift.units.Duration;
-import org.jboss.netty.logging.InternalLoggerFactory;
-import org.jboss.netty.logging.Slf4JLoggerFactory;
+import io.netty.channel.ConnectTimeoutException;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.BeforeTest;
@@ -66,7 +67,7 @@ public class TestNiftyClientTimeout
         DelegateSelectorProvider.makeUndeaf();
     }
 
-    @Test(timeOut = 2000)
+    @Test(timeOut = 10000)
     public void testSyncConnectTimeout() throws ConnectException, IOException
     {
         ServerSocket serverSocket = new ServerSocket(0);
@@ -78,7 +79,7 @@ public class TestNiftyClientTimeout
                                TEST_CONNECT_TIMEOUT,
                                TEST_RECEIVE_TIMEOUT,
                                TEST_SEND_TIMEOUT,
-                               TEST_MAX_FRAME_SIZE).setReadTimeout(TEST_READ_TIMEOUT);
+                               TEST_MAX_FRAME_SIZE);//.setReadTimeout(TEST_READ_TIMEOUT);
         }
         catch (Throwable throwable) {
             if (isTimeoutException(throwable)) {
@@ -142,7 +143,7 @@ public class TestNiftyClientTimeout
     private boolean isTimeoutException(Throwable throwable) {
         Throwable rootCause = Throwables.getRootCause(throwable);
         // Look for a java.net.ConnectException, with the message "connection timed out"
-        return rootCause instanceof ConnectException &&
+        return rootCause instanceof ConnectTimeoutException &&
                 rootCause.getMessage().startsWith("connection timed out");
     }
 }

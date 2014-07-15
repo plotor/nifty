@@ -15,21 +15,21 @@
  */
 package com.facebook.nifty.core;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.util.AbstractReferenceCounted;
+import io.netty.util.ReferenceCounted;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
 
 /**
  * Wraps incoming channel buffer into TTransport and provides a output buffer.
  */
-public class TNiftyTransport extends TTransport
+public class TNiftyTransport extends TTransport implements ReferenceCounted
 {
     private final Channel channel;
-    private final ChannelBuffer in;
-    private final ThriftTransportType thriftTransportType;
-    private final ChannelBuffer out;
+    private final ThriftMessage message;
+    private final ByteBuf out;
     private static final int DEFAULT_OUTPUT_BUFFER_SIZE = 1024;
     private final int initialReaderIndex;
     private final int initialBufferPosition;
@@ -37,15 +37,34 @@ public class TNiftyTransport extends TTransport
     private int bufferEnd;
     private final byte[] buffer;
 
+    private AbstractReferenceCounted referenceCountedDelegate = new AbstractReferenceCounted()
+    {
+        @Override
+        protected void deallocate()
+        {
+            TNiftyTransport.this.deallocate();
+        }
+    };
+
     public TNiftyTransport(Channel channel,
-                           ChannelBuffer in,
+                           ByteBuf in,
                            ThriftTransportType thriftTransportType)
     {
+        this(channel, new ThriftMessage(in, thriftTransportType));
+    }
+
+    public TNiftyTransport(Channel channel, ThriftMessage message)
+    {
+        this.message = message;
+
+        ByteBuf in = message.getBuffer();
+
         this.channel = channel;
-        this.in = in;
-        this.thriftTransportType = thriftTransportType;
-        this.out = ChannelBuffers.dynamicBuffer(DEFAULT_OUTPUT_BUFFER_SIZE);
+        this.out = channel.alloc().heapBuffer(DEFAULT_OUTPUT_BUFFER_SIZE);
         this.initialReaderIndex = in.readerIndex();
+
+        //in.retain();
+        out.retain();
 
         if (!in.hasArray()) {
             buffer = null;
@@ -62,11 +81,6 @@ public class TNiftyTransport extends TTransport
             // those problems by making things more consistent.
             in.readerIndex(in.readerIndex() + in.readableBytes());
         }
-    }
-
-    public TNiftyTransport(Channel channel, ThriftMessage message)
-    {
-        this(channel, message.getBuffer(), message.getTransportType());
     }
 
     @Override
@@ -100,6 +114,7 @@ public class TNiftyTransport extends TTransport
             return _read;
         }
         else {
+            ByteBuf in = this.message.getBuffer();
             int _read = Math.min(in.readableBytes(), length);
             in.readBytes(bytes, offset, _read);
             return _read;
@@ -121,13 +136,13 @@ public class TNiftyTransport extends TTransport
         out.writeBytes(bytes, offset, length);
     }
 
-    public ChannelBuffer getOutputBuffer()
+    public ByteBuf getOutputBuffer()
     {
         return out;
     }
 
     public ThriftTransportType getTransportType() {
-        return thriftTransportType;
+        return message.getTransportType();
     }
 
     @Override
@@ -169,12 +184,48 @@ public class TNiftyTransport extends TTransport
             return getBufferPosition() - initialBufferPosition;
         }
         else {
-            return in.readerIndex() - initialReaderIndex;
+            return message.getBuffer().readerIndex() - initialReaderIndex;
         }
     }
 
     public int getWrittenByteCount()
     {
         return getOutputBuffer().writerIndex();
+    }
+
+    protected void deallocate()
+    {
+        this.message.getBuffer().release();
+        this.out.release();
+    }
+
+    @Override
+    public int refCnt()
+    {
+        return referenceCountedDelegate.refCnt();
+    }
+
+    @Override
+    public ReferenceCounted retain()
+    {
+        return referenceCountedDelegate.retain();
+    }
+
+    @Override
+    public ReferenceCounted retain(int increment)
+    {
+        return referenceCountedDelegate.retain(increment);
+    }
+
+    @Override
+    public boolean release()
+    {
+        return referenceCountedDelegate.release();
+    }
+
+    @Override
+    public boolean release(int decrement)
+    {
+        return referenceCountedDelegate.release(decrement);
     }
 }

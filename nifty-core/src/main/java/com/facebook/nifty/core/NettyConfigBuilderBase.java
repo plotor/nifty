@@ -16,7 +16,7 @@
 package com.facebook.nifty.core;
 
 import com.google.common.base.Preconditions;
-import org.jboss.netty.util.Timer;
+import io.netty.util.Timer;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -49,7 +49,7 @@ public abstract class NettyConfigBuilderBase<T extends NettyConfigBuilderBase<T>
 
     /**
      * Sets a netty {@link Timer} that will be used to trigger read, write, and connection
-     * timeouts. Defaults to creating a new {@link org.jboss.netty.util.HashedWheelTimer}
+     * timeouts. Defaults to creating a new {@link io.netty.util.HashedWheelTimer}
      *
      * @param timer
      * @return

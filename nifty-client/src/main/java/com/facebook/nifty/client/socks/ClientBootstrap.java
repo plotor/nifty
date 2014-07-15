@@ -13,15 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.nifty.core;
+package com.facebook.nifty.client.socks;
 
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.handler.timeout.IdleStateAwareChannelHandler;
-import org.jboss.netty.handler.timeout.IdleStateEvent;
-
-public class IdleDisconnectHandler extends IdleStateAwareChannelHandler {
-    @Override
-    public void channelIdle(ChannelHandlerContext ctx, IdleStateEvent e) throws Exception {
-        ctx.getChannel().close();
-    }
+/**
+ * Created by andrewcox on 7/20/14.
+ */
+public interface ClientBootstrap
+{
 }
