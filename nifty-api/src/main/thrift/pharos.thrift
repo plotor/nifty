@@ -1,4 +1,4 @@
-namespace java com.facebook.nifty;
+namespace java com.facebook.nifty
 
 service Pharos {
 
