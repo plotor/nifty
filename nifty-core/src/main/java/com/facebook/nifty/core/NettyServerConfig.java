@@ -13,29 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.Collections2;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.inject.ProvidedBy;
-import io.netty.channel.ChannelConfig;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.util.Timer;
 
-import javax.annotation.Nullable;
-import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 @ProvidedBy(DefaultNettyServerConfigProvider.class)
-public class NettyServerConfig
-{
+public class NettyServerConfig {
 
     private final NettyServerConfigBuilder builder;
     private final Map<String, Object> bootstrapOptions;
@@ -51,8 +40,7 @@ public class NettyServerConfig
                              ExecutorService bossExecutor,
                              int bossThreadCount,
                              ExecutorService workerExecutor,
-                             int workerThreadCount)
-    {
+                             int workerThreadCount) {
         this.builder = builder;
         this.bootstrapOptions = bootstrapOptions;
         this.timer = timer;
@@ -62,64 +50,43 @@ public class NettyServerConfig
         this.workerThreadCount = workerThreadCount;
     }
 
-    public Timer getTimer()
-    {
+    public Timer getTimer() {
         return timer;
     }
 
-    public ExecutorService getBossExecutor()
-    {
+    public ExecutorService getBossExecutor() {
         return bossExecutor;
     }
 
-    public Map<String, Object> getBootstrapOptions()
-    {
+    public Map<String, Object> getBootstrapOptions() {
         return bootstrapOptions;
     }
 
-    public int getBossThreadCount()
-    {
+    public int getBossThreadCount() {
         return bossThreadCount;
     }
 
-    public ExecutorService getWorkerExecutor()
-    {
+    public ExecutorService getWorkerExecutor() {
         return workerExecutor;
     }
 
-    public int getWorkerThreadCount()
-    {
+    public int getWorkerThreadCount() {
         return workerThreadCount;
     }
 
-    public NettyServerConfigBuilder getBuilder() { return builder; }
+    public NettyServerConfigBuilder getBuilder() {
+        return builder;
+    }
 
-    public static NettyServerConfigBuilder newBuilder()
-    {
+    public static NettyServerConfigBuilder newBuilder() {
         return new NettyServerConfigBuilder();
     }
 
-    public Map<String, Object> getChannelOptions()
-    {
-        return Maps.filterKeys(getBootstrapOptions(), new Predicate<String>()
-        {
-            @Override
-            public boolean apply(@Nullable String input)
-            {
-                return input != null && !input.startsWith("child.");
-            }
-        });
+    public Map<String, Object> getChannelOptions() {
+        return Maps.filterKeys(this.getBootstrapOptions(), input -> input != null && !input.startsWith("child."));
     }
 
-    public Map<String, Object> getChildChannelOptions()
-    {
-        return Maps.filterKeys(getBootstrapOptions(), new Predicate<String>()
-        {
-            @Override
-            public boolean apply(@Nullable String input)
-            {
-                return input != null && input.startsWith("child.");
-            }
-        });
+    public Map<String, Object> getChildChannelOptions() {
+        return Maps.filterKeys(this.getBootstrapOptions(), input -> input != null && input.startsWith("child."));
     }
 }

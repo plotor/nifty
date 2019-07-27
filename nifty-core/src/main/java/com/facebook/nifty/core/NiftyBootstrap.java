@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
 import com.google.common.collect.ImmutableMap;
@@ -22,20 +23,18 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 
 /**
  * A lifecycle object that manages starting up and shutting down multiple core channels.
  */
-public class NiftyBootstrap
-{
+public class NiftyBootstrap {
+
     // TODO(NETTY4): check this
     private static final int DEFAULT_IO_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 2;
     private final ChannelGroup allChannels;
@@ -51,8 +50,7 @@ public class NiftyBootstrap
     public NiftyBootstrap(
             Set<ThriftServerDef> thriftServerDefs,
             NettyServerConfig nettyServerConfig,
-            ChannelGroup allChannels)
-    {
+            ChannelGroup allChannels) {
         this.allChannels = allChannels;
         ImmutableMap.Builder<ThriftServerDef, NettyServerTransport> builder = new ImmutableMap.Builder<>();
         this.nettyServerConfig = nettyServerConfig;
@@ -65,10 +63,9 @@ public class NiftyBootstrap
     }
 
     @PostConstruct
-    public void start() throws InterruptedException
-    {
-        ThreadFactory parentThreadFactory = renamingThreadFactory("nifty-acceptor-%s");
-        ThreadFactory childThreadFactory = renamingThreadFactory("nifty-io-%s");
+    public void start() throws InterruptedException {
+        ThreadFactory parentThreadFactory = this.renamingThreadFactory("nifty-acceptor-%s");
+        ThreadFactory childThreadFactory = this.renamingThreadFactory("nifty-io-%s");
 
         EventLoopGroup parentGroup = new NioEventLoopGroup(nettyServerConfig.getBossThreadCount(), parentThreadFactory);
         EventLoopGroup childGroup = new NioEventLoopGroup(nettyServerConfig.getWorkerThreadCount(), childThreadFactory);
@@ -80,13 +77,11 @@ public class NiftyBootstrap
     }
 
     @PreDestroy
-    public void stop()
-    {
+    public void stop() {
         for (NettyServerTransport transport : transports.values()) {
             try {
                 transport.stop();
-            }
-            catch (InterruptedException e) {
+            } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }
@@ -95,8 +90,7 @@ public class NiftyBootstrap
         //ShutdownUtil.shutdownChannelFactory(serverChannelFactory, bossExecutor, workerExecutor, allChannels);
     }
 
-    public Map<ThriftServerDef, NiftyMetrics> getNiftyMetrics()
-    {
+    public Map<ThriftServerDef, NiftyMetrics> getNiftyMetrics() {
         ImmutableMap.Builder<ThriftServerDef, NiftyMetrics> builder = new ImmutableMap.Builder<>();
         for (Map.Entry<ThriftServerDef, NettyServerTransport> entry : transports.entrySet()) {
             builder.put(entry.getKey(), entry.getValue().getMetrics());
@@ -104,8 +98,7 @@ public class NiftyBootstrap
         return builder.build();
     }
 
-    private ThreadFactory renamingThreadFactory(String nameFormat)
-    {
+    private ThreadFactory renamingThreadFactory(String nameFormat) {
         return new ThreadFactoryBuilder().setNameFormat(nameFormat).build();
     }
 }

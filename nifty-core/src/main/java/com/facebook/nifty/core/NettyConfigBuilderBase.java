@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
 import com.google.common.base.Preconditions;
@@ -25,11 +26,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
-/*
+/**
  * Hooks for configuring various parts of Netty.
  */
-public abstract class NettyConfigBuilderBase<T extends NettyConfigBuilderBase<T>>
-{
+public abstract class NettyConfigBuilderBase<T extends NettyConfigBuilderBase<T>> {
+
     // These constants come directly from Netty but are private in Netty.
     public static final int DEFAULT_BOSS_THREAD_COUNT = 1;
     public static final int DEFAULT_WORKER_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 2;
@@ -42,8 +43,7 @@ public abstract class NettyConfigBuilderBase<T extends NettyConfigBuilderBase<T>
     private ExecutorService workerThreadExecutor;
     private Timer timer;
 
-    public Map<String, Object> getBootstrapOptions()
-    {
+    public Map<String, Object> getBootstrapOptions() {
         return Collections.unmodifiableMap(options);
     }
 
@@ -54,14 +54,12 @@ public abstract class NettyConfigBuilderBase<T extends NettyConfigBuilderBase<T>
      * @param timer
      * @return
      */
-    public T setTimer(Timer timer)
-    {
+    public T setTimer(Timer timer) {
         this.timer = timer;
         return (T) this;
     }
 
-    protected Timer getTimer()
-    {
+    protected Timer getTimer() {
         return timer;
     }
 
@@ -72,64 +70,55 @@ public abstract class NettyConfigBuilderBase<T extends NettyConfigBuilderBase<T>
      * @param niftyName
      * @return
      */
-    protected T setNiftyName(String niftyName)
-    {
+    protected T setNiftyName(String niftyName) {
         Preconditions.checkNotNull(niftyName, "niftyName cannot be null");
         this.niftyName = niftyName;
         return (T) this;
     }
 
-    public String getNiftyName()
-    {
+    public String getNiftyName() {
         return niftyName;
     }
 
-    public T setBossThreadExecutor(ExecutorService bossThreadExecutor)
-    {
+    public T setBossThreadExecutor(ExecutorService bossThreadExecutor) {
         this.bossThreadExecutor = bossThreadExecutor;
         return (T) this;
     }
 
-    protected ExecutorService getBossExecutor()
-    {
+    protected ExecutorService getBossExecutor() {
         return bossThreadExecutor;
     }
 
     /**
      * Sets the number of threads that will be used to manage
+     *
      * @param bossThreadCount
      * @return
      */
-    public T setBossThreadCount(int bossThreadCount)
-    {
+    public T setBossThreadCount(int bossThreadCount) {
         this.bossThreadCount = bossThreadCount;
         return (T) this;
     }
 
-    protected int getBossThreadCount()
-    {
+    protected int getBossThreadCount() {
         return bossThreadCount;
     }
 
-    public T setWorkerThreadExecutor(ExecutorService workerThreadExecutor)
-    {
+    public T setWorkerThreadExecutor(ExecutorService workerThreadExecutor) {
         this.workerThreadExecutor = workerThreadExecutor;
         return (T) this;
     }
 
-    protected ExecutorService getWorkerExecutor()
-    {
+    protected ExecutorService getWorkerExecutor() {
         return workerThreadExecutor;
     }
 
-    public T setWorkerThreadCount(int workerThreadCount)
-    {
+    public T setWorkerThreadCount(int workerThreadCount) {
         this.workerThreadCount = workerThreadCount;
         return (T) this;
     }
 
-    protected int getWorkerThreadCount()
-    {
+    protected int getWorkerThreadCount() {
         return workerThreadCount;
     }
 
@@ -143,29 +132,25 @@ public abstract class NettyConfigBuilderBase<T extends NettyConfigBuilderBase<T>
     // A ChannelConfig impl in netty is also tied with a socket, but since all
     // these configs are interfaces we can do a bit of magic hacking here.
 
-    protected class Magic implements InvocationHandler
-    {
+    protected class Magic implements InvocationHandler {
         private final String prefix;
 
-        public Magic(String prefix)
-        {
+        public Magic(String prefix) {
             this.prefix = prefix;
         }
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args)
-                throws Throwable
-        {
+                throws Throwable {
             // we are only interested in setters with single arg
             if (proxy != null) {
-                if (method.getName().equals("toString")) {
-                    return "this is a magic proxy";
-                }
-                else if (method.getName().equals("equals")) {
-                    return Boolean.FALSE;
-                }
-                else if (method.getName().equals("hashCode")) {
-                    return 0;
+                switch (method.getName()) {
+                    case "toString":
+                        return "this is a magic proxy";
+                    case "equals":
+                        return Boolean.FALSE;
+                    case "hashCode":
+                        return 0;
                 }
             }
             // we don't support multi-arg setters

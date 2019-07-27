@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
 import com.google.common.base.Strings;
@@ -22,35 +23,34 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.socket.ServerSocketChannelConfig;
 import io.netty.channel.socket.SocketChannelConfig;
 import io.netty.util.Timer;
+import static java.util.concurrent.Executors.newCachedThreadPool;
 
 import java.lang.reflect.Proxy;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 
-import static java.util.concurrent.Executors.newCachedThreadPool;
-
-/*
+/**
  * Hooks for configuring various parts of Netty.
  */
-public class NettyServerConfigBuilder extends NettyConfigBuilderBase<NettyServerConfigBuilder>
-{
+public class NettyServerConfigBuilder extends NettyConfigBuilderBase<NettyServerConfigBuilder> {
+
     private final SocketChannelConfig socketChannelConfig = (SocketChannelConfig) Proxy.newProxyInstance(
-            getClass().getClassLoader(),
-            new Class<?>[]{SocketChannelConfig.class},
+            this.getClass().getClassLoader(),
+            new Class<?>[] {SocketChannelConfig.class},
             new Magic("child.")
     );
+
     private final ServerSocketChannelConfig serverSocketChannelConfig = (ServerSocketChannelConfig) Proxy.newProxyInstance(
-            getClass().getClassLoader(),
-            new Class<?>[]{ServerSocketChannelConfig.class},
+            this.getClass().getClassLoader(),
+            new Class<?>[] {ServerSocketChannelConfig.class},
             new Magic(""));
 
     @Inject
-    public NettyServerConfigBuilder()
-    {
+    public NettyServerConfigBuilder() {
         // Thrift turns TCP_NODELAY by default, and turning it off can have latency implications
         // so let's turn it on by default as well. It can still be switched off by explicitly
         // calling setTcpNodelay(false) after construction.
-        getSocketChannelConfig().setTcpNoDelay(true);
+        this.getSocketChannelConfig().setTcpNoDelay(true);
     }
 
     /**
@@ -60,8 +60,7 @@ public class NettyServerConfigBuilder extends NettyConfigBuilderBase<NettyServer
      *
      * @return A mutable {@link io.netty.channel.socket.SocketChannelConfig}
      */
-    public SocketChannelConfig getSocketChannelConfig()
-    {
+    public SocketChannelConfig getSocketChannelConfig() {
         return socketChannelConfig;
     }
 
@@ -72,53 +71,46 @@ public class NettyServerConfigBuilder extends NettyConfigBuilderBase<NettyServer
      *
      * @return A mutable {@link ServerSocketChannelConfig}
      */
-    public ServerSocketChannelConfig getServerSocketChannelConfig()
-    {
+    public ServerSocketChannelConfig getServerSocketChannelConfig() {
         return serverSocketChannelConfig;
     }
 
-    public NettyServerConfig build()
-    {
-        Timer timer = getTimer();
-        ExecutorService bossExecutor = getBossExecutor();
-        int bossThreadCount = getBossThreadCount();
-        ExecutorService workerExecutor = getWorkerExecutor();
-        int workerThreadCount = getWorkerThreadCount();
+    public NettyServerConfig build() {
+        Timer timer = this.getTimer();
+        ExecutorService bossExecutor = this.getBossExecutor();
+        int bossThreadCount = this.getBossThreadCount();
+        ExecutorService workerExecutor = this.getWorkerExecutor();
+        int workerThreadCount = this.getWorkerThreadCount();
 
         return new NettyServerConfig(
                 this,
-                getBootstrapOptions(),
-                timer != null ? timer : new NiftyTimer(threadNamePattern("")),
-                bossExecutor != null ? bossExecutor : buildDefaultBossExecutor(),
+                this.getBootstrapOptions(),
+                timer != null ? timer : new NiftyTimer(this.threadNamePattern("")),
+                bossExecutor != null ? bossExecutor : this.buildDefaultBossExecutor(),
                 bossThreadCount,
-                workerExecutor != null ? workerExecutor : buildDefaultWorkerExecutor(),
+                workerExecutor != null ? workerExecutor : this.buildDefaultWorkerExecutor(),
                 workerThreadCount
         );
     }
 
-    private ExecutorService buildDefaultBossExecutor()
-    {
-        return newCachedThreadPool(renamingThreadFactory(threadNamePattern("-boss-%s")));
+    private ExecutorService buildDefaultBossExecutor() {
+        return newCachedThreadPool(this.renamingThreadFactory(this.threadNamePattern("-boss-%s")));
     }
 
-    private ExecutorService buildDefaultWorkerExecutor()
-    {
-        return newCachedThreadPool(renamingThreadFactory(threadNamePattern("-worker-%s")));
+    private ExecutorService buildDefaultWorkerExecutor() {
+        return newCachedThreadPool(this.renamingThreadFactory(this.threadNamePattern("-worker-%s")));
     }
 
-    private String threadNamePattern(String suffix)
-    {
-        String niftyName = getNiftyName();
+    private String threadNamePattern(String suffix) {
+        String niftyName = this.getNiftyName();
         return "nifty-server" + (Strings.isNullOrEmpty(niftyName) ? "" : "-" + niftyName) + suffix;
     }
 
-    private ThreadFactory renamingThreadFactory(String nameFormat)
-    {
+    private ThreadFactory renamingThreadFactory(String nameFormat) {
         return new ThreadFactoryBuilder().setNameFormat(nameFormat).build();
     }
 
-    public void applyConfig(ServerBootstrap bootstrap)
-    {
+    public void applyConfig(ServerBootstrap bootstrap) {
         // TODO(NETTY4): actually apply config
     }
 }
