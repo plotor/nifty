@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.server;
 
 import com.facebook.nifty.core.NettyServerConfig;
@@ -25,71 +26,49 @@ import com.facebook.nifty.test.ResultCode;
 import com.facebook.nifty.test.scribe;
 import com.google.inject.Guice;
 import com.google.inject.Stage;
-import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Provider;
-import java.util.List;
 
 /**
  * An example of how to create a Nifty server without plugging into config or lifecycle framework.
  */
-public class Plain
-{
+public class Plain {
     private static final Logger log = LoggerFactory.getLogger(Plain.class);
 
     public static void main(String[] args)
-            throws Exception
-    {
+            throws Exception {
         final NiftyBootstrap bootstrap = Guice.createInjector(
                 Stage.PRODUCTION,
-                new NiftyModule()
-                {
+                new NiftyModule() {
                     @Override
-                    protected void configureNifty()
-                    {
-                        bind().toInstance(new ThriftServerDefBuilder()
-                                                  .listen(8080)
-                                                  .withProcessor(new scribe.Processor<scribe
-                                                          .Iface>(new scribe.Iface()
-                                                  {
-                                                      @Override
-                                                      public ResultCode Log(List<LogEntry> messages)
-                                                              throws TException
-                                                      {
-                                                          for (LogEntry message : messages) {
-                                                              log.info("{}: {}",
-                                                                       message.getCategory(),
-                                                                       message.getMessage());
-                                                          }
-                                                          return ResultCode.OK;
-                                                      }
-                                                  }))
-                                                  .build()
+                    protected void configureNifty() {
+                        this.bind().toInstance(new ThriftServerDefBuilder()
+                                .listen(8080)
+                                .withProcessor(new scribe.Processor<>(messages -> {
+                                    for (LogEntry message : messages) {
+                                        log.info("{}: {}",
+                                                message.getCategory(),
+                                                message.getMessage());
+                                    }
+                                    return ResultCode.OK;
+                                }))
+                                .build()
                         );
-                        withNettyServerConfig(NettyConfigProvider.class);
+                        this.withNettyServerConfig(NettyConfigProvider.class);
                     }
                 }
         ).getInstance(NiftyBootstrap.class);
 
         bootstrap.start();
 
-        Runtime.getRuntime().addShutdownHook(new Thread()
-        {
-            @Override
-            public void run()
-            {
-                bootstrap.stop();
-            }
-        });
+        Runtime.getRuntime().addShutdownHook(new Thread(bootstrap::stop));
     }
 
-    public static class NettyConfigProvider implements Provider<NettyServerConfig>
-    {
+    public static class NettyConfigProvider implements Provider<NettyServerConfig> {
         @Override
-        public NettyServerConfig get()
-        {
+        public NettyServerConfig get() {
             NettyServerConfigBuilder nettyConfigBuilder = new NettyServerConfigBuilder();
             nettyConfigBuilder.getSocketChannelConfig().setTcpNoDelay(true);
             nettyConfigBuilder.getSocketChannelConfig().setConnectTimeoutMillis(5000);
