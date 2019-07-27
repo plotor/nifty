@@ -13,17 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.client;
 
+import static com.facebook.nifty.core.NiftyChannelGroups.CHANNEL_GROUP_EVENT_EXECUTOR;
 import com.facebook.nifty.core.NiftyChannelInitializer;
 import com.facebook.nifty.core.NiftyChannelInitializers;
+import static com.facebook.nifty.core.NiftyChannelInitializers.composeChannelInitializers;
 import com.facebook.nifty.core.ShutdownUtil;
+import static com.google.common.base.Preconditions.checkNotNull;
 import com.google.common.base.Throwables;
 import com.google.common.net.HostAndPort;
 import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.ListenableFuture;
-import org.apache.thrift.TServiceClient;
-import org.apache.thrift.transport.TTransportException;
 import io.airlift.units.Duration;
 import io.netty.bootstrap.ChannelFactory;
 import io.netty.channel.Channel;
@@ -34,19 +36,16 @@ import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.Timer;
+import org.apache.thrift.TServiceClient;
+import org.apache.thrift.transport.TTransportException;
 
-import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.net.InetSocketAddress;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 
-import static com.facebook.nifty.core.NiftyChannelGroups.CHANNEL_GROUP_EVENT_EXECUTOR;
-import static com.facebook.nifty.core.NiftyChannelInitializers.composeChannelInitializers;
-import static com.google.common.base.Preconditions.checkNotNull;
-
-public class NiftyClient implements Closeable
-{
+public class NiftyClient implements Closeable {
     public static final Duration DEFAULT_CONNECT_TIMEOUT = new Duration(2, TimeUnit.SECONDS);
     public static final Duration DEFAULT_RECEIVE_TIMEOUT = new Duration(2, TimeUnit.SECONDS);
     private static final Duration DEFAULT_SEND_TIMEOUT = new Duration(2, TimeUnit.SECONDS);
@@ -65,13 +64,11 @@ public class NiftyClient implements Closeable
     /**
      * Creates a new NiftyClient with defaults: cachedThreadPool for bossExecutor and workerExecutor
      */
-    public NiftyClient()
-    {
+    public NiftyClient() {
         this(NettyClientConfig.newBuilder().build());
     }
 
-    public NiftyClient(NettyClientConfig nettyClientConfig)
-    {
+    public NiftyClient(NettyClientConfig nettyClientConfig) {
         this.nettyClientConfig = nettyClientConfig;
 
         this.timer = nettyClientConfig.getTimer();
@@ -92,34 +89,31 @@ public class NiftyClient implements Closeable
     }
 
     public <T extends NiftyClientChannel> ListenableFuture<T> connectAsync(
-            NiftyClientConnector<T> clientChannelConnector)
-    {
-        return connectAsync(clientChannelConnector,
-                            DEFAULT_CONNECT_TIMEOUT,
-                            DEFAULT_RECEIVE_TIMEOUT,
-                            DEFAULT_SEND_TIMEOUT,
-                            DEFAULT_MAX_FRAME_SIZE,
-                            defaultSocksProxyAddress);
+            NiftyClientConnector<T> clientChannelConnector) {
+        return this.connectAsync(clientChannelConnector,
+                DEFAULT_CONNECT_TIMEOUT,
+                DEFAULT_RECEIVE_TIMEOUT,
+                DEFAULT_SEND_TIMEOUT,
+                DEFAULT_MAX_FRAME_SIZE,
+                defaultSocksProxyAddress);
     }
 
-    public HostAndPort getDefaultSocksProxyAddress()
-    {
+    public HostAndPort getDefaultSocksProxyAddress() {
         return defaultSocksProxyAddress;
     }
 
     public <T extends NiftyClientChannel> ListenableFuture<T> connectAsync(
-        NiftyClientConnector<T> clientChannelConnector,
-        @Nullable Duration connectTimeout,
-        @Nullable Duration receiveTimeout,
-        @Nullable Duration sendTimeout,
-        int maxFrameSize)
-    {
-        return connectAsync(clientChannelConnector,
-                            connectTimeout,
-                            receiveTimeout,
-                            sendTimeout,
-                            maxFrameSize,
-                            defaultSocksProxyAddress);
+            NiftyClientConnector<T> clientChannelConnector,
+            @Nullable Duration connectTimeout,
+            @Nullable Duration receiveTimeout,
+            @Nullable Duration sendTimeout,
+            int maxFrameSize) {
+        return this.connectAsync(clientChannelConnector,
+                connectTimeout,
+                receiveTimeout,
+                sendTimeout,
+                maxFrameSize,
+                defaultSocksProxyAddress);
     }
 
     public <T extends NiftyClientChannel> ListenableFuture<T> connectAsync(
@@ -128,11 +122,10 @@ public class NiftyClient implements Closeable
             @Nullable Duration receiveTimeout,
             @Nullable Duration sendTimeout,
             int maxFrameSize,
-            @Nullable HostAndPort socksProxyAddress)
-    {
+            @Nullable HostAndPort socksProxyAddress) {
         checkNotNull(clientChannelConnector, "clientChannelConnector is null");
 
-        ClientBootstrap bootstrap = createClientBootstrap(socksProxyAddress);
+        ClientBootstrap bootstrap = this.createClientBootstrap(socksProxyAddress);
         bootstrap.setOptions(nettyClientConfig.getBootstrapOptions());
 
         if (connectTimeout != null) {
@@ -155,17 +148,16 @@ public class NiftyClient implements Closeable
             }
         });
         return new TNiftyFuture<>(clientChannelConnector,
-                                  receiveTimeout,
-                                  sendTimeout,
-                                  nettyChannelFuture);
+                receiveTimeout,
+                sendTimeout,
+                nettyChannelFuture);
     }
 
     public <T extends NiftyClientChannel> TNiftyClientChannelTransport connectSync(
             Class<? extends TServiceClient> clientClass,
             NiftyClientConnector<T> clientChannelConnector)
-            throws TTransportException, InterruptedException
-    {
-        return connectSync(
+            throws TTransportException, InterruptedException {
+        return this.connectSync(
                 clientClass,
                 clientChannelConnector,
                 DEFAULT_CONNECT_TIMEOUT,
@@ -182,9 +174,8 @@ public class NiftyClient implements Closeable
             @Nullable Duration receiveTimeout,
             @Nullable Duration sendTimeout,
             int maxFrameSize)
-            throws TTransportException, InterruptedException
-    {
-        return connectSync(
+            throws TTransportException, InterruptedException {
+        return this.connectSync(
                 clientClass,
                 clientChannelConnector,
                 connectTimeout,
@@ -202,11 +193,10 @@ public class NiftyClient implements Closeable
             @Nullable Duration sendTimeout,
             int maxFrameSize,
             @Nullable HostAndPort socksProxyAddress)
-            throws TTransportException, InterruptedException
-    {
+            throws TTransportException, InterruptedException {
         try {
             T channel =
-                    connectAsync(
+                    this.connectAsync(
                             clientChannelConnector,
                             connectTimeout,
                             receiveTimeout,
@@ -214,8 +204,7 @@ public class NiftyClient implements Closeable
                             maxFrameSize,
                             socksProxyAddress).get();
             return new TNiftyClientChannelTransport(clientClass, channel);
-        }
-        catch (ExecutionException e) {
+        } catch (ExecutionException e) {
             Throwables.propagateIfInstanceOf(e.getCause(), TTransportException.class);
             throw new TTransportException(TTransportException.UNKNOWN, "Failed to establish client connection", e);
         }
@@ -228,9 +217,8 @@ public class NiftyClient implements Closeable
      */
     @Deprecated
     public TNiftyClientTransport connectSync(InetSocketAddress addr)
-            throws TTransportException, InterruptedException
-    {
-        return connectSync(addr, DEFAULT_CONNECT_TIMEOUT, DEFAULT_RECEIVE_TIMEOUT, DEFAULT_SEND_TIMEOUT, DEFAULT_MAX_FRAME_SIZE);
+            throws TTransportException, InterruptedException {
+        return this.connectSync(addr, DEFAULT_CONNECT_TIMEOUT, DEFAULT_RECEIVE_TIMEOUT, DEFAULT_SEND_TIMEOUT, DEFAULT_MAX_FRAME_SIZE);
     }
 
     /**
@@ -245,9 +233,8 @@ public class NiftyClient implements Closeable
             @Nullable Duration receiveTimeout,
             @Nullable Duration sendTimeout,
             int maxFrameSize)
-            throws TTransportException, InterruptedException
-    {
-        return connectSync(addr, connectTimeout, receiveTimeout, sendTimeout, maxFrameSize, defaultSocksProxyAddress);
+            throws TTransportException, InterruptedException {
+        return this.connectSync(addr, connectTimeout, receiveTimeout, sendTimeout, maxFrameSize, defaultSocksProxyAddress);
     }
 
     /**
@@ -263,10 +250,9 @@ public class NiftyClient implements Closeable
             @Nullable Duration sendTimeout,
             int maxFrameSize,
             @Nullable HostAndPort socksProxyAddress)
-            throws TTransportException, InterruptedException
-    {
+            throws TTransportException, InterruptedException {
         // TODO: implement send timeout for sync client
-        ClientBootstrap bootstrap = createClientBootstrap(socksProxyAddress);
+        ClientBootstrap bootstrap = this.createClientBootstrap(socksProxyAddress);
 
         NiftyChannelInitializer<Channel> channelInitializer =
                 NiftyChannelInitializers.composeChannelInitializers(
@@ -308,66 +294,56 @@ public class NiftyClient implements Closeable
     }
 
     @Override
-    public void close()
-    {
+    public void close() {
         // Stop the timer thread first, so no timeouts can fire during the rest of the
         // shutdown process
         timer.stop();
 
         ShutdownUtil.shutdownChannelFactory(channelFactory,
-                                            null,
-                                            workerGroup,
-                                            allChannels);
+                null,
+                workerGroup,
+                allChannels);
     }
 
-    private ClientBootstrap createClientBootstrap(@Nullable HostAndPort socksProxyAddress)
-    {
+    private ClientBootstrap createClientBootstrap(@Nullable HostAndPort socksProxyAddress) {
         //if (socksProxyAddress != null) {
         //    return new Socks4ClientBootstrap(channelFactory, toInetAddress(socksProxyAddress));
         //}
         //else {
-            return new DefaultClientBootstrap().group(workerGroup);
+        return new DefaultClientBootstrap().group(workerGroup);
         //}
     }
 
-    private static InetSocketAddress toInetAddress(HostAndPort hostAndPort)
-    {
+    private static InetSocketAddress toInetAddress(HostAndPort hostAndPort) {
         return (hostAndPort == null) ? null : new InetSocketAddress(hostAndPort.getHostText(), hostAndPort.getPort());
     }
 
-    private class TNiftyFuture<T extends NiftyClientChannel> extends AbstractFuture<T>
-    {
+    private class TNiftyFuture<T extends NiftyClientChannel> extends AbstractFuture<T> {
         private TNiftyFuture(final NiftyClientConnector<T> clientChannelConnector,
                              @Nullable final Duration receiveTimeout,
                              @Nullable final Duration sendTimeout,
-                             final ChannelFuture channelFuture)
-        {
-            channelFuture.addListener(new ChannelFutureListener()
-            {
+                             final ChannelFuture channelFuture) {
+            channelFuture.addListener(new ChannelFutureListener() {
                 @Override
                 public void operationComplete(ChannelFuture future)
-                        throws Exception
-                {
+                        throws Exception {
                     try {
                         if (future.isSuccess()) {
                             Channel nettyChannel = future.channel();
                             T channel = clientChannelConnector.newThriftClientChannel(nettyChannel,
-                                                                                      nettyClientConfig);
+                                    nettyClientConfig);
                             channel.setReceiveTimeout(receiveTimeout);
                             channel.setSendTimeout(sendTimeout);
-                            set(channel);
-                        }
-                        else if (future.isCancelled()) {
-                            if (!cancel(true)) {
-                                setException(new TTransportException("Unable to cancel client channel connection"));
+                            TNiftyFuture.this.set(channel);
+                        } else if (future.isCancelled()) {
+                            if (!TNiftyFuture.this.cancel(true)) {
+                                TNiftyFuture.this.setException(new TTransportException("Unable to cancel client channel connection"));
                             }
-                        }
-                        else {
+                        } else {
                             throw future.cause();
                         }
-                    }
-                    catch (Throwable t) {
-                        setException(new TTransportException("Failed to connect client channel", t));
+                    } catch (Throwable t) {
+                        TNiftyFuture.this.setException(new TTransportException("Failed to connect client channel", t));
                     }
                 }
             });

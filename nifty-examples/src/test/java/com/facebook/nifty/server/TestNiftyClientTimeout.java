@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.server;
 
 import com.facebook.nifty.client.FramedClientChannel;
@@ -27,22 +28,20 @@ import io.airlift.units.Duration;
 import io.netty.channel.ConnectTimeoutException;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
+import static org.testng.Assert.fail;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 
-import static org.testng.Assert.fail;
-
-public class TestNiftyClientTimeout
-{
+public class TestNiftyClientTimeout {
     private static final Duration TEST_CONNECT_TIMEOUT = new Duration(500, TimeUnit.MILLISECONDS);
     private static final Duration TEST_RECEIVE_TIMEOUT = new Duration(500, TimeUnit.MILLISECONDS);
     private static final Duration TEST_READ_TIMEOUT = new Duration(500, TimeUnit.MILLISECONDS);
@@ -68,26 +67,23 @@ public class TestNiftyClientTimeout
     }
 
     @Test(timeOut = 10000)
-    public void testSyncConnectTimeout() throws ConnectException, IOException
-    {
+    public void testSyncConnectTimeout() throws ConnectException, IOException {
         ServerSocket serverSocket = new ServerSocket(0);
         int port = serverSocket.getLocalPort();
         final NiftyClient client = new NiftyClient();
         try {
             client.connectSync(scribe.Client.class,
-                               new FramedClientConnector(new InetSocketAddress(port)),
-                               TEST_CONNECT_TIMEOUT,
-                               TEST_RECEIVE_TIMEOUT,
-                               TEST_SEND_TIMEOUT,
-                               TEST_MAX_FRAME_SIZE);//.setReadTimeout(TEST_READ_TIMEOUT);
-        }
-        catch (Throwable throwable) {
-            if (isTimeoutException(throwable)) {
+                    new FramedClientConnector(new InetSocketAddress(port)),
+                    TEST_CONNECT_TIMEOUT,
+                    TEST_RECEIVE_TIMEOUT,
+                    TEST_SEND_TIMEOUT,
+                    TEST_MAX_FRAME_SIZE);//.setReadTimeout(TEST_READ_TIMEOUT);
+        } catch (Throwable throwable) {
+            if (this.isTimeoutException(throwable)) {
                 return;
             }
             Throwables.propagate(throwable);
-        }
-        finally {
+        } finally {
             client.close();
             serverSocket.close();
         }
@@ -97,41 +93,36 @@ public class TestNiftyClientTimeout
     }
 
     @Test(timeOut = 5000)
-    public void testAsyncConnectTimeout() throws IOException
-    {
+    public void testAsyncConnectTimeout() throws IOException {
         ServerSocket serverSocket = new ServerSocket(0);
         int port = serverSocket.getLocalPort();
 
         final NiftyClient client = new NiftyClient();
         try {
             ListenableFuture<FramedClientChannel> future =
-                            client.connectAsync(new FramedClientConnector(new InetSocketAddress(port)),
-                                                TEST_CONNECT_TIMEOUT,
-                                                TEST_RECEIVE_TIMEOUT,
-                                                TEST_SEND_TIMEOUT,
-                                                TEST_MAX_FRAME_SIZE);
+                    client.connectAsync(new FramedClientConnector(new InetSocketAddress(port)),
+                            TEST_CONNECT_TIMEOUT,
+                            TEST_RECEIVE_TIMEOUT,
+                            TEST_SEND_TIMEOUT,
+                            TEST_MAX_FRAME_SIZE);
             future = Futures.transform(future,
-                              new Function<FramedClientChannel, FramedClientChannel>()
-                              {
-                                  @Nullable
-                                  @Override
-                                  public FramedClientChannel apply(@Nullable FramedClientChannel input)
-                                  {
-                                      input.setReadTimeout(TEST_READ_TIMEOUT);
-                                      return input;
-                                  }
-                              });
+                    new Function<FramedClientChannel, FramedClientChannel>() {
+                        @Nullable
+                        @Override
+                        public FramedClientChannel apply(@Nullable FramedClientChannel input) {
+                            input.setReadTimeout(TEST_READ_TIMEOUT);
+                            return input;
+                        }
+                    });
 
             // Wait while NiftyClient attempts to connect the channel
             future.get();
-        }
-        catch (Throwable throwable) {
-            if (isTimeoutException(throwable)) {
+        } catch (Throwable throwable) {
+            if (this.isTimeoutException(throwable)) {
                 return;
             }
             Throwables.propagate(throwable);
-        }
-        finally {
+        } finally {
             client.close();
             serverSocket.close();
         }

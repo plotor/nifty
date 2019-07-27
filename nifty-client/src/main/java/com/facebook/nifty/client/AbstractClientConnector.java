@@ -13,52 +13,46 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.client;
 
 import com.facebook.nifty.duplex.TDuplexProtocolFactory;
 import com.google.common.net.HostAndPort;
-import org.apache.thrift.protocol.TBinaryProtocol;
 import io.netty.channel.ChannelFuture;
+import org.apache.thrift.protocol.TBinaryProtocol;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
 public abstract class AbstractClientConnector<T extends NiftyClientChannel>
-        implements NiftyClientConnector<T>
-{
+        implements NiftyClientConnector<T> {
     private final SocketAddress address;
     private final TDuplexProtocolFactory protocolFactory;
 
-    public AbstractClientConnector(SocketAddress address, TDuplexProtocolFactory protocolFactory)
-    {
+    public AbstractClientConnector(SocketAddress address, TDuplexProtocolFactory protocolFactory) {
         this.address = address;
         this.protocolFactory = protocolFactory;
     }
 
     @Override
-    public ChannelFuture connect(ClientBootstrap bootstrap)
-    {
+    public ChannelFuture connect(ClientBootstrap bootstrap) {
         return bootstrap.connect(address);
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return address.toString();
     }
 
-    protected TDuplexProtocolFactory getProtocolFactory()
-    {
+    protected TDuplexProtocolFactory getProtocolFactory() {
         return protocolFactory;
     }
 
-    protected static SocketAddress toSocketAddress(HostAndPort address)
-    {
+    protected static SocketAddress toSocketAddress(HostAndPort address) {
         return new InetSocketAddress(address.getHostText(), address.getPort());
     }
 
-    protected static TDuplexProtocolFactory defaultProtocolFactory()
-    {
+    protected static TDuplexProtocolFactory defaultProtocolFactory() {
         return TDuplexProtocolFactory.fromSingleFactory(new TBinaryProtocol.Factory());
     }
 }

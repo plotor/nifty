@@ -13,37 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
-import com.facebook.nifty.processor.NiftyProcessor;
-import org.easymock.EasyMock;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-public class TestServerDefBuilder
-{
+public class TestServerDefBuilder {
     @Test
-    public void testServerDefBuilderWithoutProcessor()
-    {
+    public void testServerDefBuilderWithoutProcessor() {
         try {
             new ThriftServerDefBuilder().build();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             return;
         }
         Assert.fail();
-    }
-
-    @Test
-    public void testServerDefBuilder()
-    {
-        try {
-            new ThriftServerDefBuilder()
-                    .withProcessor(EasyMock.createMock(NiftyProcessor.class))
-                    .build();
-        }
-        catch (Exception e) {
-            Assert.fail();
-        }
     }
 }

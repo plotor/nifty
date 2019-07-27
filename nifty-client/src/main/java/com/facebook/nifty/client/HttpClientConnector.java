@@ -13,10 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.client;
 
 import com.facebook.nifty.core.NiftyChannelInitializer;
 import com.facebook.nifty.duplex.TDuplexProtocolFactory;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 import com.google.common.net.HostAndPort;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPipeline;
@@ -26,67 +29,55 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
-
-public class HttpClientConnector extends AbstractClientConnector<HttpClientChannel>
-{
+public class HttpClientConnector extends AbstractClientConnector<HttpClientChannel> {
     private final URI endpointUri;
 
     public HttpClientConnector(String hostNameAndPort, String servicePath)
-            throws URISyntaxException
-    {
+            throws URISyntaxException {
         this(hostNameAndPort, servicePath, defaultProtocolFactory());
     }
 
-    public HttpClientConnector(URI uri)
-    {
+    public HttpClientConnector(URI uri) {
         this(uri, defaultProtocolFactory());
     }
 
     public HttpClientConnector(String hostNameAndPort, String servicePath, TDuplexProtocolFactory protocolFactory)
-            throws URISyntaxException
-    {
+            throws URISyntaxException {
         super(new InetSocketAddress(HostAndPort.fromString(hostNameAndPort).getHostText(),
-                                    HostAndPort.fromString(hostNameAndPort).getPortOrDefault(80)),
-              protocolFactory
+                        HostAndPort.fromString(hostNameAndPort).getPortOrDefault(80)),
+                protocolFactory
         );
 
         this.endpointUri = new URI("http", hostNameAndPort, servicePath, null, null);
     }
 
-    public HttpClientConnector(URI uri, TDuplexProtocolFactory protocolFactory)
-    {
+    public HttpClientConnector(URI uri, TDuplexProtocolFactory protocolFactory) {
         super(toSocketAddress(HostAndPort.fromParts(checkNotNull(uri).getHost(), getPortFromURI(uri))),
-              defaultProtocolFactory());
+                defaultProtocolFactory());
 
         checkArgument(uri.isAbsolute() && !uri.isOpaque(),
-                      "HttpClientConnector requires an absolute URI with a path");
+                "HttpClientConnector requires an absolute URI with a path");
 
         this.endpointUri = uri;
     }
 
     @Override
-    public HttpClientChannel newThriftClientChannel(Channel nettyChannel, NettyClientConfig clientConfig)
-    {
+    public HttpClientChannel newThriftClientChannel(Channel nettyChannel, NettyClientConfig clientConfig) {
         HttpClientChannel channel =
                 new HttpClientChannel(nettyChannel,
-                                      clientConfig.getTimer(),
-                                      getProtocolFactory(),
-                                      endpointUri.getHost(),
-                                      endpointUri.getPath());
+                        clientConfig.getTimer(),
+                        this.getProtocolFactory(),
+                        endpointUri.getHost(),
+                        endpointUri.getPath());
         channel.getNettyChannel().pipeline().addLast("thriftHandler", channel);
         return channel;
     }
 
     @Override
-    public NiftyChannelInitializer<Channel> newChannelInitializer(int maxFrameSize, NettyClientConfig clientConfig)
-    {
-        return new NiftyChannelInitializer<Channel>()
-        {
+    public NiftyChannelInitializer<Channel> newChannelInitializer(int maxFrameSize, NettyClientConfig clientConfig) {
+        return new NiftyChannelInitializer<Channel>() {
             @Override
-            public void initChannel(Channel channel) throws Exception
-            {
+            public void initChannel(Channel channel) throws Exception {
                 ChannelPipeline cp = channel.pipeline();
                 cp.addLast("httpClientCodec", new HttpClientCodec());
                 // TODO(NETTY4): netty4 has no chunk aggregator, but do we need it? try to add a test that sends a chunked http message
@@ -96,13 +87,11 @@ public class HttpClientConnector extends AbstractClientConnector<HttpClientChann
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return endpointUri.toString();
     }
 
-    private static int getPortFromURI(URI uri)
-    {
+    private static int getPortFromURI(URI uri) {
         URI uriNN = checkNotNull(uri);
         if (uri.getScheme().toLowerCase().equals("http")) {
             return uriNN.getPort() == -1 ? 80 : uriNN.getPort();
@@ -110,7 +99,7 @@ public class HttpClientConnector extends AbstractClientConnector<HttpClientChann
             return uriNN.getPort() == -1 ? 443 : uriNN.getPort();
         } else {
             throw new IllegalArgumentException("HttpClientConnector only connects to HTTP/HTTPS " +
-                                               "URIs");
+                    "URIs");
         }
     }
 }
