@@ -35,6 +35,7 @@
         <module>nifty-client</module>
         <module>nifty-examples</module>
         <module>nifty-load-tester</module>
+        <module>nifty-api</module>
     </modules>
 
     <properties>
@@ -79,6 +80,11 @@
         <dependencies>
             <dependency>
                 <groupId>com.facebook.nifty</groupId>
+                <artifactId>nifty-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.facebook.nifty</groupId>
                 <artifactId>nifty-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -101,7 +107,7 @@
             <dependency>
                 <groupId>org.apache.thrift</groupId>
                 <artifactId>libthrift</artifactId>
-                <version>0.9.1</version>
+                <version>0.12.0</version>
             </dependency>
 
             <dependency>

@@ -36,6 +36,10 @@
     <dependencies>
         <dependency>
             <groupId>com.facebook.nifty</groupId>
+            <artifactId>nifty-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.facebook.nifty</groupId>
             <artifactId>nifty-core</artifactId>
         </dependency>
 
