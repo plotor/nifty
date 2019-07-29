@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.codec;
 
 import com.facebook.nifty.core.TNiftyTransport;
@@ -29,67 +30,54 @@ import org.apache.thrift.protocol.TProtocolUtil;
 import org.apache.thrift.protocol.TType;
 import org.apache.thrift.transport.TTransportException;
 
-public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
-{
+public class DefaultThriftFrameDecoder extends ThriftFrameDecoder {
+
     public static final int MESSAGE_FRAME_SIZE = 4;
     private final int maxFrameSize;
     private final TProtocolFactory inputProtocolFactory;
 
-    public DefaultThriftFrameDecoder(int maxFrameSize, TProtocolFactory inputProtocolFactory)
-    {
+    public DefaultThriftFrameDecoder(int maxFrameSize, TProtocolFactory inputProtocolFactory) {
         this.maxFrameSize = maxFrameSize;
         this.inputProtocolFactory = inputProtocolFactory;
     }
 
     @Override
-    protected ThriftMessage decode(ChannelHandlerContext ctx, Channel channel, ByteBuf buffer)
-            throws Exception
-    {
+    protected ThriftMessage doDecode(ChannelHandlerContext ctx, Channel channel, ByteBuf buffer) throws Exception {
         if (!buffer.isReadable()) {
             return null;
         }
 
         short firstByte = buffer.getUnsignedByte(0);
         if (firstByte >= 0x80) {
-            ByteBuf messageBuffer = tryDecodeUnframedMessage(ctx, channel, buffer, inputProtocolFactory);
-
+            ByteBuf messageBuffer = this.tryDecodeUnframedMessage(ctx, channel, buffer, inputProtocolFactory);
             if (messageBuffer == null) {
                 return null;
             }
-
-            // A non-zero MSB for the first byte of the message implies the message starts with a
-            // protocol id (and thus it is unframed).
-            return new ThriftMessage(messageBuffer,ThriftTransportType.UNFRAMED);
+            // A non-zero MSB for the first byte of the message implies the message starts with a protocol id (and thus it is unframed).
+            return new ThriftMessage(messageBuffer, ThriftTransportType.UNFRAMED);
         } else if (buffer.readableBytes() < MESSAGE_FRAME_SIZE) {
             // Expecting a framed message, but not enough bytes available to read the frame size
             return null;
         } else {
-            ByteBuf messageBuffer = tryDecodeFramedMessage(ctx, channel, buffer, true);
-
+            ByteBuf messageBuffer = this.tryDecodeFramedMessage(ctx, channel, buffer, true);
             if (messageBuffer == null) {
                 return null;
             }
-
             // Messages with a zero MSB in the first byte are framed messages
             return new ThriftMessage(messageBuffer, ThriftTransportType.FRAMED);
         }
     }
 
-    protected ByteBuf tryDecodeFramedMessage(ChannelHandlerContext ctx,
-                                                   Channel channel,
-                                                   ByteBuf buffer,
-                                                   boolean stripFraming)
-    {
-        // Framed messages are prefixed by the size of the frame (which doesn't include the
-        // framing itself).
+    protected ByteBuf tryDecodeFramedMessage(
+            ChannelHandlerContext ctx, Channel channel, ByteBuf buffer, boolean stripFraming) {
+        // Framed messages are prefixed by the size of the frame (which doesn't include the framing itself).
 
         int messageStartReaderIndex = buffer.readerIndex();
         int messageContentsOffset;
 
         if (stripFraming) {
             messageContentsOffset = messageStartReaderIndex + MESSAGE_FRAME_SIZE;
-        }
-        else {
+        } else {
             messageContentsOffset = messageStartReaderIndex;
         }
 
@@ -99,8 +87,7 @@ public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
 
         if (messageContentsLength > maxFrameSize) {
             ctx.fireExceptionCaught(
-                    new TooLongFrameException("Maximum frame size of " + maxFrameSize +
-                                              " exceeded")
+                    new TooLongFrameException("Maximum frame size of " + maxFrameSize + " exceeded")
             );
         }
 
@@ -113,20 +100,18 @@ public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
             return null;
         } else {
             // Full message is available, return it
-            ByteBuf messageBuffer = extractFrame(buffer,
-                                                       messageContentsOffset,
-                                                       messageContentsLength);
+            ByteBuf messageBuffer = this.extractFrame(buffer,
+                    messageContentsOffset,
+                    messageContentsLength);
             buffer.readerIndex(messageStartReaderIndex + messageLength);
             return messageBuffer;
         }
     }
 
     protected ByteBuf tryDecodeUnframedMessage(ChannelHandlerContext ctx,
-                                                     Channel channel,
-                                                     ByteBuf buffer,
-                                                     TProtocolFactory inputProtocolFactory)
-            throws TException
-    {
+                                               Channel channel,
+                                               ByteBuf buffer,
+                                               TProtocolFactory inputProtocolFactory) throws TException {
         // Perform a trial decode, skipping through
         // the fields, to see whether we have an entire message available.
 
@@ -134,11 +119,9 @@ public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
         int messageStartReaderIndex = buffer.readerIndex();
 
         try {
-            TNiftyTransport decodeAttemptTransport =
-                    new TNiftyTransport(channel, buffer, ThriftTransportType.UNFRAMED);
+            TNiftyTransport decodeAttemptTransport = new TNiftyTransport(channel, buffer, ThriftTransportType.UNFRAMED);
             int initialReadBytes = decodeAttemptTransport.getReadByteCount();
-            TProtocol inputProtocol =
-                    inputProtocolFactory.getProtocol(decodeAttemptTransport);
+            TProtocol inputProtocol = inputProtocolFactory.getProtocol(decodeAttemptTransport);
 
             // Skip through the message
             inputProtocol.readMessageBegin();
@@ -164,14 +147,12 @@ public class DefaultThriftFrameDecoder extends ThriftFrameDecoder
         }
 
         // We have a full message in the read buffer, slice it off
-        ByteBuf messageBuffer =
-                extractFrame(buffer, messageStartReaderIndex, messageLength);
+        ByteBuf messageBuffer = this.extractFrame(buffer, messageStartReaderIndex, messageLength);
         buffer.readerIndex(messageStartReaderIndex + messageLength);
         return messageBuffer;
     }
 
-    protected ByteBuf extractFrame(ByteBuf buffer, int index, int length)
-    {
+    protected ByteBuf extractFrame(ByteBuf buffer, int index, int length) {
         // Slice should be sufficient here (and avoids the copy in LengthFieldBasedFrameDecoder)
         // because we know no one is going to modify the contents in the read buffers.
         return buffer.slice(index, length);

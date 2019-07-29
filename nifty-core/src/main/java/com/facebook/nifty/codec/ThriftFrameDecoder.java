@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.codec;
 
 import com.facebook.nifty.core.ThriftMessage;
@@ -23,18 +24,16 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 
 import java.util.List;
 
-public abstract class ThriftFrameDecoder extends ByteToMessageDecoder
-{
-    protected abstract ThriftMessage decode(ChannelHandlerContext ctx, Channel channel, ByteBuf buffer)
-            throws Exception;
+public abstract class ThriftFrameDecoder extends ByteToMessageDecoder {
 
     @Override
-    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception
-    {
-        ThriftMessage message = decode(ctx, ctx.channel(), in);
+    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+        ThriftMessage message = this.doDecode(ctx, ctx.channel(), in);
         if (message != null) {
             out.add(message);
         }
     }
-}
 
+    protected abstract ThriftMessage doDecode(ChannelHandlerContext ctx, Channel channel, ByteBuf buffer) throws Exception;
+
+}

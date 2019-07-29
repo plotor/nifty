@@ -13,37 +13,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
-public class NiftyNoOpSecurityFactory implements NiftySecurityFactory
-{
+public class NiftyNoOpSecurityFactory implements NiftySecurityFactory {
+
     static final ChannelHandler noOpHandler = new ChannelInboundHandlerAdapter() {
         @Override
-        public void channelRegistered(ChannelHandlerContext ctx) throws Exception
-        {
+        public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
             super.channelRegistered(ctx);
             ctx.pipeline().remove(this);
         }
     };
 
     @Override
-    public NiftySecurityHandlers getSecurityHandlers(ThriftServerDef def, NettyServerConfig serverConfig)
-    {
-        return new NiftySecurityHandlers()
-        {
+    public NiftySecurityHandlers getSecurityHandlers(ThriftServerDef def, NettyServerConfig serverConfig) {
+        return new NiftySecurityHandlers() {
             @Override
-            public ChannelHandler getAuthenticationHandler()
-            {
+            public ChannelHandler getAuthenticationHandler() {
                 return noOpHandler;
             }
 
             @Override
-            public ChannelHandler getEncryptionHandler()
-            {
+            public ChannelHandler getEncryptionHandler() {
                 return noOpHandler;
             }
         };

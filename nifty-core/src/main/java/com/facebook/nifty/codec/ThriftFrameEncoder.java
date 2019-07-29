@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.codec;
 
 import com.facebook.nifty.core.ThriftMessage;
@@ -21,19 +22,15 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 
-public abstract class ThriftFrameEncoder extends MessageToByteEncoder<ThriftMessage>
-{
-    protected abstract ByteBuf encode(ChannelHandlerContext ctx, Channel channel, ThriftMessage message)
-            throws Exception;
+public abstract class ThriftFrameEncoder extends MessageToByteEncoder<ThriftMessage> {
 
     @Override
-    protected void encode(ChannelHandlerContext ctx, ThriftMessage message, ByteBuf out)
-            throws Exception
-    {
+    protected void encode(ChannelHandlerContext ctx, ThriftMessage message, ByteBuf out) throws Exception {
         // TODO(NETTY4): this does a copy, can we get rid of it?
-        //ByteBuf encoding = encode(ctx, ctx.channel(), (ThriftMessage) message);
-        //out.writeBytes(encoding);
-        ByteBuf encoding = encode(ctx, ctx.channel(), (ThriftMessage) message);
+        ByteBuf encoding = this.doEncode(ctx, ctx.channel(), message);
         out.writeBytes(encoding);
     }
+
+    protected abstract ByteBuf doEncode(ChannelHandlerContext ctx, Channel channel, ThriftMessage message) throws Exception;
+
 }

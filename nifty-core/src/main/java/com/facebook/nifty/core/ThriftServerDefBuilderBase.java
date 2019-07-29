@@ -13,25 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
 import com.facebook.nifty.codec.DefaultThriftFrameCodecFactory;
 import com.facebook.nifty.codec.ThriftFrameCodecFactory;
 import com.facebook.nifty.duplex.TDuplexProtocolFactory;
 import com.facebook.nifty.processor.NiftyProcessor;
+import static com.facebook.nifty.processor.NiftyProcessorAdapters.factoryFromTProcessorFactory;
 import com.facebook.nifty.processor.NiftyProcessorFactory;
+import static com.google.common.base.Preconditions.checkState;
 import io.airlift.units.Duration;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.TProcessorFactory;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
-import org.apache.thrift.transport.TTransport;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static com.facebook.nifty.processor.NiftyProcessorAdapters.factoryFromTProcessorFactory;
-import static com.google.common.base.Preconditions.checkState;
 
 /**
  * Builder for the Thrift Server descriptor. Example :
@@ -48,8 +47,8 @@ import static com.google.common.base.Preconditions.checkState;
  * <p/>
  * </code>
  */
-public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilderBase<T>>
-{
+public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilderBase<T>> {
+
     private static final AtomicInteger ID = new AtomicInteger(1);
     private ThriftFrameCodecFactory thriftFrameCodecFactory;
     private int serverPort;
@@ -66,9 +65,9 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
     private NiftySecurityFactory securityFactory;
 
     /**
-     * The default maximum allowable size for a single incoming thrift request or outgoing thrift
-     * response. A server can configure the actual maximum to be much higher (up to 0x7FFFFFFF or
-     * almost 2 GB). This default could also be safely bumped up, but 64MB is chosen simply
+     * The default maximum allowable size for a single incoming thrift request or outgoing thrift response.
+     * A server can configure the actual maximum to be much higher (up to 0x7FFFFFFF or almost 2 GB).
+     * This default could also be safely bumped up, but 64MB is chosen simply
      * because it seems reasonable that if you are sending requests or responses larger than
      * that, it should be a conscious decision (something you must manually configure).
      */
@@ -77,21 +76,13 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
     /**
      * Create a ThriftServerDefBuilder with common defaults
      */
-    public ThriftServerDefBuilderBase()
-    {
+    public ThriftServerDefBuilderBase() {
         this.serverPort = 8080;
         this.maxFrameSize = MAX_FRAME_SIZE;
         this.maxConnections = 0;
         this.queuedResponseLimit = 16;
         this.duplexProtocolFactory = TDuplexProtocolFactory.fromSingleFactory(new TBinaryProtocol.Factory(true, true));
-        this.executor = new Executor()
-        {
-            @Override
-            public void execute(Runnable runnable)
-            {
-                runnable.run();
-            }
-        };
+        this.executor = Runnable::run;
         this.clientIdleTimeout = null;
         this.taskTimeout = null;
         this.thriftFrameCodecFactory = new DefaultThriftFrameCodecFactory();
@@ -101,8 +92,7 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
     /**
      * Give the endpoint a more meaningful name.
      */
-    public T name(String name)
-    {
+    public T name(String name) {
         this.name = name;
         return (T) this;
     }
@@ -110,8 +100,7 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
     /**
      * Listen to this port.
      */
-    public T listen(int serverPort)
-    {
+    public T listen(int serverPort) {
         this.serverPort = serverPort;
         return (T) this;
     }
@@ -119,14 +108,12 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
     /**
      * Specify protocolFactory for both input and output
      */
-    public T protocol(TDuplexProtocolFactory tProtocolFactory)
-    {
+    public T protocol(TDuplexProtocolFactory tProtocolFactory) {
         this.duplexProtocolFactory = tProtocolFactory;
         return (T) this;
     }
 
-    public T protocol(TProtocolFactory tProtocolFactory)
-    {
+    public T protocol(TProtocolFactory tProtocolFactory) {
         this.duplexProtocolFactory = TDuplexProtocolFactory.fromSingleFactory(tProtocolFactory);
         return (T) this;
     }
@@ -134,20 +121,12 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
     /**
      * Specify the TProcessor.
      */
-    public T withProcessor(final NiftyProcessor processor)
-    {
-        this.niftyProcessorFactory = new NiftyProcessorFactory() {
-            @Override
-            public NiftyProcessor getProcessor(TTransport transport)
-            {
-                return processor;
-            }
-        };
+    public T withProcessor(final NiftyProcessor processor) {
+        this.niftyProcessorFactory = transport -> processor;
         return (T) this;
     }
 
-    public T withProcessor(TProcessor processor)
-    {
+    public T withProcessor(TProcessor processor) {
         this.thriftProcessorFactory = new TProcessorFactory(processor);
         return (T) this;
     }
@@ -155,8 +134,7 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
     /**
      * Anohter way to specify the TProcessor.
      */
-    public T withProcessorFactory(NiftyProcessorFactory processorFactory)
-    {
+    public T withProcessorFactory(NiftyProcessorFactory processorFactory) {
         this.niftyProcessorFactory = processorFactory;
         return (T) this;
     }
@@ -164,8 +142,7 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
     /**
      * Anohter way to specify the TProcessor.
      */
-    public T withProcessorFactory(TProcessorFactory processorFactory)
-    {
+    public T withProcessorFactory(TProcessorFactory processorFactory) {
         this.thriftProcessorFactory = processorFactory;
         return (T) this;
     }
@@ -173,8 +150,7 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
     /**
      * Set frame size limit.  Default is MAX_FRAME_SIZE
      */
-    public T limitFrameSizeTo(int maxFrameSize)
-    {
+    public T limitFrameSizeTo(int maxFrameSize) {
         this.maxFrameSize = maxFrameSize;
         return (T) this;
     }
@@ -182,8 +158,7 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
     /**
      * Set maximum number of connections. Default is 0 (unlimited)
      */
-    public T limitConnectionsTo(int maxConnections)
-    {
+    public T limitConnectionsTo(int maxConnections) {
         this.maxConnections = maxConnections;
         return (T) this;
     }
@@ -192,8 +167,7 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
      * Limit number of queued responses per connection, before pausing reads
      * to catch up.
      */
-    public T limitQueuedResponsesPerConnection(int queuedResponseLimit)
-    {
+    public T limitQueuedResponsesPerConnection(int queuedResponseLimit) {
         this.queuedResponseLimit = queuedResponseLimit;
         return (T) this;
     }
@@ -202,8 +176,7 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
      * Specify timeout during which if connected client doesn't send a message, server
      * will disconnect the client
      */
-    public T clientIdleTimeout(Duration clientIdleTimeout)
-    {
+    public T clientIdleTimeout(Duration clientIdleTimeout) {
         this.clientIdleTimeout = clientIdleTimeout;
         return (T) this;
     }
@@ -213,14 +186,12 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
      * 1. if a task remains on the executor queue, server will cancel the task when it is dispatched.
      * 2. if a task is scheduled but does not finish processing, server will send timeout exception back.
      */
-    public T taskTimeout(Duration taskTimeout)
-    {
+    public T taskTimeout(Duration taskTimeout) {
         this.taskTimeout = taskTimeout;
         return (T) this;
     }
 
-    public T thriftFrameCodecFactory(ThriftFrameCodecFactory thriftFrameCodecFactory)
-    {
+    public T thriftFrameCodecFactory(ThriftFrameCodecFactory thriftFrameCodecFactory) {
         this.thriftFrameCodecFactory = thriftFrameCodecFactory;
         return (T) this;
     }
@@ -230,14 +201,12 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
      * By default invocation happens in Netty single thread
      * ( i.e. = TNonBlockingServer )
      */
-    public T using(Executor exe)
-    {
+    public T using(Executor exe) {
         this.executor = exe;
         return (T) this;
     }
 
-    public T withSecurityFactory(NiftySecurityFactory securityFactory)
-    {
+    public T withSecurityFactory(NiftySecurityFactory securityFactory) {
         this.securityFactory = securityFactory;
         return (T) this;
     }
@@ -245,16 +214,13 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
     /**
      * Build the ThriftServerDef
      */
-    public ThriftServerDef build()
-    {
-        checkState(niftyProcessorFactory != null || thriftProcessorFactory != null,
-                   "Processor not defined!");
+    public ThriftServerDef build() {
+        checkState(niftyProcessorFactory != null || thriftProcessorFactory != null, "Processor not defined!");
         checkState(niftyProcessorFactory == null || thriftProcessorFactory == null,
-                   "TProcessors will be automatically adapted to NiftyProcessors, don't specify both");
+                "TProcessors will be automatically adapted to NiftyProcessors, don't specify both");
         checkState(maxConnections >= 0, "maxConnections should be 0 (for unlimited) or positive");
 
-        if (niftyProcessorFactory == null)
-        {
+        if (niftyProcessorFactory == null) {
             niftyProcessorFactory = factoryFromTProcessorFactory(thriftProcessorFactory);
         }
 

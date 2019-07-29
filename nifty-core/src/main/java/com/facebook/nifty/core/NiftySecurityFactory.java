@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
-public interface NiftySecurityFactory
-{
+public interface NiftySecurityFactory {
     NiftySecurityHandlers getSecurityHandlers(ThriftServerDef def, NettyServerConfig serverConfig);
 }

@@ -13,16 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
 import static com.google.common.base.Preconditions.checkState;
 
-public class RequestContexts
-{
+public class RequestContexts {
     private static ThreadLocal<RequestContext> threadLocalContext = new ThreadLocal<>();
 
-    private RequestContexts()
-    {
+    private RequestContexts() {
     }
 
     /**
@@ -35,13 +34,12 @@ public class RequestContexts
      *
      * @return The {@link NiftyRequestContext} of the current request
      * @throws IllegalStateException when not called on the thread on which your server * method
-     * was originally invoked
+     *                               was originally invoked
      */
-    public static RequestContext getCurrentContext()
-    {
+    public static RequestContext getCurrentContext() {
         RequestContext currentContext = threadLocalContext.get();
         checkState(currentContext != null,
-                   "Can only get a RequestContext when running inside a Thrift handler");
+                "Can only get a RequestContext when running inside a Thrift handler");
         return currentContext;
     }
 
@@ -52,8 +50,7 @@ public class RequestContexts
      * dispatching to another thread (e.g. a thread in an ExecutorService) if the code that will
      * run on that thread might also be interested in the {@link RequestContext}
      */
-    public static void setCurrentContext(RequestContext requestContext)
-    {
+    public static void setCurrentContext(RequestContext requestContext) {
         threadLocalContext.set(requestContext);
     }
 
@@ -63,8 +60,7 @@ public class RequestContexts
      * This is normally called only by the server, but it can also be useful to call when
      * cleaning up a context
      */
-    public static void clearCurrentContext()
-    {
+    public static void clearCurrentContext() {
         threadLocalContext.remove();
     }
 }

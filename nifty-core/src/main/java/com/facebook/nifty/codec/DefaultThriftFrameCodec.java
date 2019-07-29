@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.codec;
 
 import com.facebook.nifty.core.ThriftMessage;
@@ -22,26 +23,23 @@ import org.apache.thrift.protocol.TProtocolFactory;
 
 import java.util.List;
 
-public class DefaultThriftFrameCodec extends ThriftFrameCodec
-{
+public class DefaultThriftFrameCodec extends ThriftFrameCodec {
+
     private final ThriftFrameDecoder decoder;
     private final ThriftFrameEncoder encoder;
 
-    public DefaultThriftFrameCodec(int maxFrameSize, TProtocolFactory inputProtocolFactory)
-    {
+    public DefaultThriftFrameCodec(int maxFrameSize, TProtocolFactory inputProtocolFactory) {
         this.decoder = new DefaultThriftFrameDecoder(maxFrameSize, inputProtocolFactory);
         this.encoder = new DefaultThriftFrameEncoder(maxFrameSize);
     }
 
     @Override
-    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception
-    {
+    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         decoder.decode(ctx, in, out);
     }
 
     @Override
-    protected void encode(ChannelHandlerContext ctx, ThriftMessage message, ByteBuf out) throws Exception
-    {
+    protected void encode(ChannelHandlerContext ctx, ThriftMessage message, ByteBuf out) throws Exception {
         encoder.encode(ctx, message, out);
     }
 }

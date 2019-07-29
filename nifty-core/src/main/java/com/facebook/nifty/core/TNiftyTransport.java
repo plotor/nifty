@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
 import io.netty.buffer.ByteBuf;
@@ -25,8 +26,7 @@ import org.apache.thrift.transport.TTransportException;
 /**
  * Wraps incoming channel buffer into TTransport and provides a output buffer.
  */
-public class TNiftyTransport extends TTransport implements ReferenceCounted
-{
+public class TNiftyTransport extends TTransport implements ReferenceCounted {
     private final Channel channel;
     private final ThriftMessage message;
     private final ByteBuf out;
@@ -37,24 +37,20 @@ public class TNiftyTransport extends TTransport implements ReferenceCounted
     private int bufferEnd;
     private final byte[] buffer;
 
-    private AbstractReferenceCounted referenceCountedDelegate = new AbstractReferenceCounted()
-    {
+    private AbstractReferenceCounted referenceCountedDelegate = new AbstractReferenceCounted() {
         @Override
-        protected void deallocate()
-        {
+        protected void deallocate() {
             TNiftyTransport.this.deallocate();
         }
     };
 
     public TNiftyTransport(Channel channel,
                            ByteBuf in,
-                           ThriftTransportType thriftTransportType)
-    {
+                           ThriftTransportType thriftTransportType) {
         this(channel, new ThriftMessage(in, thriftTransportType));
     }
 
-    public TNiftyTransport(Channel channel, ThriftMessage message)
-    {
+    public TNiftyTransport(Channel channel, ThriftMessage message) {
         this.message = message;
 
         ByteBuf in = message.getBuffer();
@@ -70,8 +66,7 @@ public class TNiftyTransport extends TTransport implements ReferenceCounted
             buffer = null;
             bufferPosition = 0;
             initialBufferPosition = bufferEnd = -1;
-        }
-        else {
+        } else {
             buffer = in.array();
             initialBufferPosition = bufferPosition = in.arrayOffset() + in.readerIndex();
             bufferEnd = bufferPosition + in.readableBytes();
@@ -84,36 +79,31 @@ public class TNiftyTransport extends TTransport implements ReferenceCounted
     }
 
     @Override
-    public boolean isOpen()
-    {
+    public boolean isOpen() {
         return channel.isOpen();
     }
 
     @Override
     public void open()
-            throws TTransportException
-    {
+            throws TTransportException {
         // no-op
     }
 
     @Override
-    public void close()
-    {
+    public void close() {
         // no-op
         channel.close();
     }
 
     @Override
     public int read(byte[] bytes, int offset, int length)
-            throws TTransportException
-    {
-        if (getBytesRemainingInBuffer() >= 0) {
-            int _read = Math.min(getBytesRemainingInBuffer(), length);
-            System.arraycopy(getBuffer(), getBufferPosition(), bytes, offset, _read);
-            consumeBuffer(_read);
+            throws TTransportException {
+        if (this.getBytesRemainingInBuffer() >= 0) {
+            int _read = Math.min(this.getBytesRemainingInBuffer(), length);
+            System.arraycopy(this.getBuffer(), this.getBufferPosition(), bytes, offset, _read);
+            this.consumeBuffer(_read);
             return _read;
-        }
-        else {
+        } else {
             ByteBuf in = this.message.getBuffer();
             int _read = Math.min(in.readableBytes(), length);
             in.readBytes(bytes, offset, _read);
@@ -123,7 +113,7 @@ public class TNiftyTransport extends TTransport implements ReferenceCounted
 
     @Override
     public int readAll(byte[] bytes, int offset, int length) throws TTransportException {
-        if (read(bytes, offset, length) < length) {
+        if (this.read(bytes, offset, length) < length) {
             throw new TTransportException("Buffer doesn't have enough bytes to read");
         }
         return length;
@@ -131,13 +121,11 @@ public class TNiftyTransport extends TTransport implements ReferenceCounted
 
     @Override
     public void write(byte[] bytes, int offset, int length)
-            throws TTransportException
-    {
+            throws TTransportException {
         out.writeBytes(bytes, offset, length);
     }
 
-    public ByteBuf getOutputBuffer()
-    {
+    public ByteBuf getOutputBuffer() {
         return out;
     }
 
@@ -147,85 +135,71 @@ public class TNiftyTransport extends TTransport implements ReferenceCounted
 
     @Override
     public void flush()
-            throws TTransportException
-    {
+            throws TTransportException {
         // Flush is a no-op: NiftyDispatcher will write the response to the Channel, in order to
         // guarantee ordering of responses when required.
     }
 
     @Override
-    public void consumeBuffer(int len)
-    {
+    public void consumeBuffer(int len) {
         bufferPosition += len;
     }
 
     @Override
     @edu.umd.cs.findbugs.annotations.SuppressWarnings("EI_EXPOSE_REP")
-    public byte[] getBuffer()
-    {
+    public byte[] getBuffer() {
         return buffer;
     }
 
     @Override
-    public int getBufferPosition()
-    {
+    public int getBufferPosition() {
         return bufferPosition;
     }
 
     @Override
-    public int getBytesRemainingInBuffer()
-    {
+    public int getBytesRemainingInBuffer() {
         return bufferEnd - bufferPosition;
     }
 
-    public int getReadByteCount()
-    {
-        if (getBytesRemainingInBuffer() >= 0) {
-            return getBufferPosition() - initialBufferPosition;
-        }
-        else {
+    public int getReadByteCount() {
+        if (this.getBytesRemainingInBuffer() >= 0) {
+            return this.getBufferPosition() - initialBufferPosition;
+        } else {
             return message.getBuffer().readerIndex() - initialReaderIndex;
         }
     }
 
-    public int getWrittenByteCount()
-    {
-        return getOutputBuffer().writerIndex();
+    public int getWrittenByteCount() {
+        return this.getOutputBuffer().writerIndex();
     }
 
-    protected void deallocate()
-    {
+    protected void deallocate() {
         this.message.getBuffer().release();
         this.out.release();
     }
 
     @Override
-    public int refCnt()
-    {
+    public int refCnt() {
         return referenceCountedDelegate.refCnt();
     }
 
     @Override
-    public ReferenceCounted retain()
-    {
+    public ReferenceCounted retain() {
         return referenceCountedDelegate.retain();
     }
 
     @Override
-    public ReferenceCounted retain(int increment)
-    {
+    public ReferenceCounted retain(int increment) {
         return referenceCountedDelegate.retain(increment);
     }
 
     @Override
-    public boolean release()
-    {
+    public boolean release() {
         return referenceCountedDelegate.release();
     }
 
     @Override
-    public boolean release(int decrement)
-    {
+    public boolean release(int decrement) {
         return referenceCountedDelegate.release(decrement);
     }
 }

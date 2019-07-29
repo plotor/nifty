@@ -13,11 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.duplex;
 
-import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
-import org.apache.thrift.transport.TTransport;
 
 /***
  * A factory for creating a pair of protocols (one for input, one for output). Gives more
@@ -28,36 +27,18 @@ import org.apache.thrift.transport.TTransport;
  * protocol object).
  */
 public abstract class TDuplexProtocolFactory {
+
     public abstract TProtocolPair getProtocolPair(TTransportPair transportPair);
 
-    public TProtocolFactory getInputProtocolFactory()
-    {
-        return new TProtocolFactory()
-        {
-            @Override
-            public TProtocol getProtocol(TTransport trans)
-            {
-                return getProtocolPair(TTransportPair.fromSingleTransport(trans)).getInputProtocol();
-            }
-        };
+    public TProtocolFactory getInputProtocolFactory() {
+        return (TProtocolFactory) trans -> this.getProtocolPair(TTransportPair.fromSingleTransport(trans)).getInputProtocol();
     }
 
-    public TProtocolFactory getOutputProtocolFactory()
-    {
-        return new TProtocolFactory()
-        {
-            @Override
-            public TProtocol getProtocol(TTransport trans)
-            {
-                return getProtocolPair(TTransportPair.fromSingleTransport(trans)).getOutputProtocol();
-            }
-        };
+    public TProtocolFactory getOutputProtocolFactory() {
+        return (TProtocolFactory) trans -> this.getProtocolPair(TTransportPair.fromSingleTransport(trans)).getOutputProtocol();
     }
 
-    public static TDuplexProtocolFactory fromSingleFactory(
-            final TProtocolFactory protocolFactory
-    )
-    {
+    public static TDuplexProtocolFactory fromSingleFactory(final TProtocolFactory protocolFactory) {
         return new TDuplexProtocolFactory() {
             @Override
             public TProtocolPair getProtocolPair(TTransportPair transportPair) {
@@ -70,9 +51,7 @@ public abstract class TDuplexProtocolFactory {
 
     public static TDuplexProtocolFactory fromSeparateFactories(
             final TProtocolFactory inputProtocolFactory,
-            final TProtocolFactory outputProtocolFactory
-    )
-    {
+            final TProtocolFactory outputProtocolFactory) {
         return new TDuplexProtocolFactory() {
             @Override
             public TProtocolPair getProtocolPair(TTransportPair transportPair) {

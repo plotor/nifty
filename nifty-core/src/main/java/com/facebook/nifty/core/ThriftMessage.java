@@ -13,29 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
 import io.netty.buffer.ByteBuf;
 
-public class ThriftMessage
-{
+public class ThriftMessage {
+
     private final ByteBuf buffer;
     private final ThriftTransportType transportType;
     private long processStartTimeMillis;
 
-    public ThriftMessage(ByteBuf buffer, ThriftTransportType transportType)
-    {
+    public ThriftMessage(ByteBuf buffer, ThriftTransportType transportType) {
         this.buffer = buffer.retain();
         this.transportType = transportType;
     }
 
-    public ByteBuf getBuffer()
-    {
+    public ByteBuf getBuffer() {
         return buffer;
     }
 
-    public ThriftTransportType getTransportType()
-    {
+    public ThriftTransportType getTransportType() {
         return transportType;
     }
 
@@ -46,16 +44,8 @@ public class ThriftMessage
      *
      * @return The {@link Factory}
      */
-    public Factory getMessageFactory()
-    {
-        return new Factory()
-        {
-            @Override
-            public ThriftMessage create(ByteBuf messageBuffer)
-            {
-                return new ThriftMessage(messageBuffer, getTransportType());
-            }
-        };
+    public Factory getMessageFactory() {
+        return messageBuffer -> new ThriftMessage(messageBuffer, ThriftMessage.this.getTransportType());
     }
 
     /**
@@ -67,20 +57,19 @@ public class ThriftMessage
      *
      * @return {@code true} if ordered responses are required
      */
-    public boolean isOrderedResponsesRequired()
-    {
+    public boolean isOrderedResponsesRequired() {
         return true;
     }
 
-    public long getProcessStartTimeMillis() { return processStartTimeMillis; }
+    public long getProcessStartTimeMillis() {
+        return processStartTimeMillis;
+    }
 
-    public void setProcessStartTimeMillis(long processStartTimeMillis)
-    {
+    public void setProcessStartTimeMillis(long processStartTimeMillis) {
         this.processStartTimeMillis = processStartTimeMillis;
     }
 
-    public static interface Factory
-    {
-        public ThriftMessage create(ByteBuf messageBuffer);
+    public interface Factory {
+        ThriftMessage create(ByteBuf messageBuffer);
     }
 }

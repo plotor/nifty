@@ -13,15 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.codec;
 
 import org.apache.thrift.protocol.TProtocolFactory;
 
-public class DefaultThriftFrameCodecFactory implements ThriftFrameCodecFactory
-{
+public class DefaultThriftFrameCodecFactory implements ThriftFrameCodecFactory {
+
     @Override
-    public DefaultThriftFrameCodec create(int maxFrameSize, TProtocolFactory defaultProtocolFactory)
-    {
+    public DefaultThriftFrameCodec create(int maxFrameSize, TProtocolFactory defaultProtocolFactory) {
         return new DefaultThriftFrameCodec(maxFrameSize, defaultProtocolFactory);
     }
+
 }

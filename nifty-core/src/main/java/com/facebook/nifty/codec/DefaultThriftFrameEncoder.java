@@ -13,41 +13,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.codec;
 
 import com.facebook.nifty.core.ThriftMessage;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.TooLongFrameException;
 
-public class DefaultThriftFrameEncoder extends ThriftFrameEncoder
-{
+public class DefaultThriftFrameEncoder extends ThriftFrameEncoder {
+
     private final long maxFrameSize;
 
-    public DefaultThriftFrameEncoder(long maxFrameSize)
-    {
-
+    public DefaultThriftFrameEncoder(long maxFrameSize) {
         this.maxFrameSize = maxFrameSize;
     }
 
     @Override
-    protected ByteBuf encode(ChannelHandlerContext ctx,
-                             Channel channel,
-                             ThriftMessage message) throws Exception
-    {
+    protected ByteBuf doEncode(ChannelHandlerContext ctx, Channel channel, ThriftMessage message) throws Exception {
         int frameSize = message.getBuffer().readableBytes();
 
-        if (message.getBuffer().readableBytes() > maxFrameSize)
-        {
+        if (message.getBuffer().readableBytes() > maxFrameSize) {
             ctx.fireExceptionCaught(new TooLongFrameException(
-                    String.format(
-                            "Frame size exceeded on encode: frame was %d bytes, maximum allowed is %d bytes",
-                            frameSize,
-                            maxFrameSize)));
+                    String.format("Frame size exceeded on encode: frame was %d bytes, maximum allowed is %d bytes", frameSize, maxFrameSize)));
             return null;
         }
 
@@ -59,10 +50,10 @@ public class DefaultThriftFrameEncoder extends ThriftFrameEncoder
                 ByteBuf frameSizeBuffer = channel.alloc().heapBuffer(4);
                 frameSizeBuffer.writeInt(message.getBuffer().readableBytes());
                 return new CompositeByteBuf(PooledByteBufAllocator.DEFAULT,
-                                            true,
-                                            2,
-                                            frameSizeBuffer,
-                                            message.getBuffer());
+                        true,
+                        2,
+                        frameSizeBuffer,
+                        message.getBuffer());
 
             case HEADER:
                 throw new UnsupportedOperationException("Header transport is not supported");

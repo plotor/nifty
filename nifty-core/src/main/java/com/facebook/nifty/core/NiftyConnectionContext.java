@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
 import com.google.common.base.Preconditions;
@@ -23,47 +24,41 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class NiftyConnectionContext implements ConnectionContext
-{
+public class NiftyConnectionContext implements ConnectionContext {
+
     private SocketAddress remoteAddress;
     private Map<String, Object> attributes = new ConcurrentHashMap<>();
 
     @Override
-    public SocketAddress getRemoteAddress()
-    {
+    public SocketAddress getRemoteAddress() {
         return remoteAddress;
     }
 
-    public void setRemoteAddress(SocketAddress remoteAddress)
-    {
+    public void setRemoteAddress(SocketAddress remoteAddress) {
         this.remoteAddress = remoteAddress;
     }
 
     @Override
-    public Object getAttribute(String attributeName)
-    {
+    public Object getAttribute(String attributeName) {
         Preconditions.checkNotNull(attributeName);
         return attributes.get(attributeName);
     }
 
     @Override
-    public Object setAttribute(String attributeName, Object value)
-    {
+    public Object setAttribute(String attributeName, Object value) {
         Preconditions.checkNotNull(attributeName);
         Preconditions.checkNotNull(value);
         return attributes.put(attributeName, value);
     }
 
     @Override
-    public Object removeAttribute(String attributeName)
-    {
+    public Object removeAttribute(String attributeName) {
         Preconditions.checkNotNull(attributeName);
         return attributes.remove(attributeName);
     }
 
     @Override
-    public Iterator<Map.Entry<String, Object>> attributeIterator()
-    {
+    public Iterator<Map.Entry<String, Object>> attributeIterator() {
         return Collections.unmodifiableSet(attributes.entrySet()).iterator();
     }
 }

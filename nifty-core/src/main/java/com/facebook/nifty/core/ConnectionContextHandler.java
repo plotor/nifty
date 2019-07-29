@@ -13,21 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
-public class ConnectionContextHandler extends ChannelInboundHandlerAdapter
-{
+public class ConnectionContextHandler extends ChannelInboundHandlerAdapter {
     @Override
-    public void channelRegistered(ChannelHandlerContext ctx) throws Exception
-    {
+    public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
         Channel channel = ctx.channel();
-        ConnectionContext connectionContext = ConnectionContexts.createContext(channel);
-        if (connectionContext instanceof NiftyConnectionContext) {
-            NiftyConnectionContext niftyConnectionContext = (NiftyConnectionContext)connectionContext;
+        ConnectionContext context = ConnectionContexts.createContext(channel);
+        if (context instanceof NiftyConnectionContext) {
+            NiftyConnectionContext niftyConnectionContext = (NiftyConnectionContext) context;
             niftyConnectionContext.setRemoteAddress(channel.remoteAddress());
         }
 

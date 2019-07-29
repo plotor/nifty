@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.duplex;
 
 import org.apache.thrift.transport.TTransport;
@@ -24,19 +25,16 @@ public class TTransportPair {
     private final TTransport inputTransport;
     private final TTransport outputTransport;
 
-    protected TTransportPair(TTransport inputTransport, TTransport outputTransport)
-    {
+    protected TTransportPair(TTransport inputTransport, TTransport outputTransport) {
         this.inputTransport = inputTransport;
         this.outputTransport = outputTransport;
     }
 
-    public TTransport getInputTransport()
-    {
+    public TTransport getInputTransport() {
         return inputTransport;
     }
 
-    public TTransport getOutputTransport()
-    {
+    public TTransport getOutputTransport() {
         return outputTransport;
     }
 

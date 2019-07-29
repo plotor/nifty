@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
 import io.netty.bootstrap.Bootstrap;
@@ -24,21 +25,18 @@ import io.netty.util.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.Time;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public class ShutdownUtil
-{
+public class ShutdownUtil {
     private static final Logger log = LoggerFactory.getLogger(ShutdownUtil.class);
 
     public static void shutdownChannelFactory(ChannelFactory channelFactory,
                                               EventExecutorGroup bossExecutor,
                                               EventExecutorGroup workerExecutor,
-                                              ChannelGroup allChannels)
-    {
+                                              ChannelGroup allChannels) {
         // Close all channels
         if (allChannels != null) {
             closeChannels(allChannels);
@@ -65,8 +63,7 @@ public class ShutdownUtil
         //}
     }
 
-    public static void shutdownChannelFactory(Bootstrap bootstrap, ChannelGroup allChannels)
-    {
+    public static void shutdownChannelFactory(Bootstrap bootstrap, ChannelGroup allChannels) {
         // TODO(NETTY4): implement this
         try {
             bootstrap.group().shutdownGracefully(100, 200, TimeUnit.MILLISECONDS).get();
@@ -78,8 +75,7 @@ public class ShutdownUtil
         }
     }
 
-    public static void shutdownChannelFactory(ServerBootstrap bootstrap, ChannelGroup allChannels)
-    {
+    public static void shutdownChannelFactory(ServerBootstrap bootstrap, ChannelGroup allChannels) {
         // TODO(NETTY4): fix this
         try {
             bootstrap.group().shutdownGracefully(100, 200, TimeUnit.MILLISECONDS).get();
@@ -92,10 +88,8 @@ public class ShutdownUtil
         }
     }
 
-    public static void closeChannels(ChannelGroup allChannels)
-    {
-        if (allChannels.size() > 0)
-        {
+    public static void closeChannels(ChannelGroup allChannels) {
+        if (allChannels.size() > 0) {
             // TODO : allow an option here to control if we need to drain connections and wait instead of killing them all
             try {
                 log.info("Closing " + allChannels.size() + " open client connections");
@@ -110,36 +104,31 @@ public class ShutdownUtil
     }
 
     // TODO : make wait time configurable ?
-    public static void shutdownExecutor(EventExecutorGroup executor, final String name)
-    {
+    public static void shutdownExecutor(EventExecutorGroup executor, final String name) {
         Future<?> terminationFuture = executor.shutdownGracefully();
         try {
             log.info("Waiting for {} to shutdown", name);
             //if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
             try {
                 terminationFuture.get(5, TimeUnit.SECONDS);
-            }
-            catch (TimeoutException | ExecutionException e) {
+            } catch (TimeoutException | ExecutionException e) {
                 log.warn("{} did not shutdown properly", name);
             }
-        }
-        catch (InterruptedException e) {
+        } catch (InterruptedException e) {
             log.warn("Interrupted while waiting for {} to shutdown", name);
             Thread.currentThread().interrupt();
         }
     }
 
     // TODO : make wait time configurable ?
-    public static void shutdownExecutor(ExecutorService executor, final String name)
-    {
+    public static void shutdownExecutor(ExecutorService executor, final String name) {
         executor.shutdown();
         try {
             log.info("Waiting for {} to shutdown", name);
             if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
                 log.warn("{} did not shutdown properly", name);
             }
-        }
-        catch (InterruptedException e) {
+        } catch (InterruptedException e) {
             log.warn("Interrupted while waiting for {} to shutdown", name);
             Thread.currentThread().interrupt();
         }

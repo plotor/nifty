@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.codec;
 
 import com.facebook.nifty.core.ThriftMessage;
 import io.netty.handler.codec.ByteToMessageCodec;
 
-public abstract class ThriftFrameCodec extends ByteToMessageCodec<ThriftMessage>
-{
+public abstract class ThriftFrameCodec extends ByteToMessageCodec<ThriftMessage> {
 }

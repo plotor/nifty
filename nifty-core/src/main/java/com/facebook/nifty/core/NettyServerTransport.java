@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
+import static com.facebook.nifty.core.NiftyChannelGroups.CHANNEL_GROUP_EVENT_EXECUTOR;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -27,37 +29,29 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
-import io.netty.channel.nio.NioEventLoop;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
-import io.netty.util.concurrent.DefaultEventExecutorGroup;
 import io.netty.util.concurrent.DefaultThreadFactory;
-import io.netty.util.concurrent.EventExecutor;
 import org.apache.thrift.protocol.TProtocolFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.inject.Inject;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static com.facebook.nifty.core.NiftyChannelGroups.CHANNEL_GROUP_EVENT_EXECUTOR;
+import javax.inject.Inject;
 
 /**
  * A core channel the decode framed Thrift message, dispatches to the TProcessor given
  * and then encode message back to Thrift frame.
  */
-public class NettyServerTransport
-{
+public class NettyServerTransport {
     private static final Logger log = LoggerFactory.getLogger(NettyServerTransport.class);
 
     private final int port;
@@ -70,8 +64,7 @@ public class NettyServerTransport
     private final NettyServerConfig nettyServerConfig;
     private final ChannelStatistics channelStatistics;
 
-    public NettyServerTransport(final ThriftServerDef def)
-    {
+    public NettyServerTransport(final ThriftServerDef def) {
         this(def, NettyServerConfig.newBuilder().build(), new DefaultChannelGroup(CHANNEL_GROUP_EVENT_EXECUTOR));
     }
 
@@ -79,8 +72,7 @@ public class NettyServerTransport
     public NettyServerTransport(
             final ThriftServerDef def,
             final NettyServerConfig nettyServerConfig,
-            final ChannelGroup allChannels)
-    {
+            final ChannelGroup allChannels) {
         this.def = def;
         this.nettyServerConfig = nettyServerConfig;
         this.port = def.getServerPort();
@@ -88,23 +80,20 @@ public class NettyServerTransport
         this.channelStatistics = new ChannelStatistics(allChannels);
     }
 
-    public void start() throws InterruptedException
-    {
-        start(new ServerBootstrap().group(new NioEventLoopGroup(1, new DefaultThreadFactory("nifty-server-acceptor-pool")),
-                                          new NioEventLoopGroup(0, new DefaultThreadFactory("nifty-server-ioworker-pool"))));
+    public void start() throws InterruptedException {
+        this.start(new ServerBootstrap().group(new NioEventLoopGroup(1, new DefaultThreadFactory("nifty-server-acceptor-pool")),
+                new NioEventLoopGroup(0, new DefaultThreadFactory("nifty-server-ioworker-pool"))));
     }
 
-    public void start(EventLoopGroup bossGroup, EventLoopGroup ioWorkerGroup) throws InterruptedException
-    {
-        start(new ServerBootstrap().group(bossGroup, ioWorkerGroup));
+    public void start(EventLoopGroup bossGroup, EventLoopGroup ioWorkerGroup) throws InterruptedException {
+        this.start(new ServerBootstrap().group(bossGroup, ioWorkerGroup));
     }
 
-    public void start(ServerBootstrap serverBootstrap) throws InterruptedException
-    {
+    public void start(ServerBootstrap serverBootstrap) throws InterruptedException {
         // connectionLimiter must be instantiated exactly once (and thus outside the pipeline factory)
         final ConnectionLimiter connectionLimiter = new ConnectionLimiter(def.getMaxConnections());
 
-        this.bootstrap = serverBootstrap;
+        bootstrap = serverBootstrap;
 
         nettyServerConfig.getBuilder().applyConfig(bootstrap);
 
@@ -112,36 +101,33 @@ public class NettyServerTransport
 
         bootstrap.childHandler(new ChannelInitializer<NioSocketChannel>() {
             @Override
-            protected void initChannel(NioSocketChannel channel) throws Exception
-            {
-                ChannelPipeline cp = channel.pipeline();
+            protected void initChannel(NioSocketChannel channel) throws Exception {
+                ChannelPipeline pipeline = channel.pipeline();
                 TProtocolFactory inputProtocolFactory = def.getDuplexProtocolFactory().getInputProtocolFactory();
-                // TODO: re-nable this
+                // TODO: re-enable this
                 //NiftySecurityHandlers securityHandlers = def.getSecurityFactory().getSecurityHandlers(def, nettyServerConfig);
-                cp.addLast("connectionContext", new ConnectionContextHandler());
-                cp.addLast("connectionLimiter", connectionLimiter);
-                cp.addLast(ChannelStatistics.NAME, channelStatistics);
+                pipeline.addLast("connectionContext", new ConnectionContextHandler());
+                pipeline.addLast("connectionLimiter", connectionLimiter);
+                pipeline.addLast(ChannelStatistics.NAME, channelStatistics);
                 // TODO(NETTY4): make auth & encryption work again
                 //cp.addLast("encryptionHandler", securityHandlers.getEncryptionHandler());
-                cp.addLast("frameCodec", def.getThriftFrameCodecFactory().create(def.getMaxFrameSize(),
-                                                                                 inputProtocolFactory));
+                pipeline.addLast("frameCodec", def.getThriftFrameCodecFactory().create(def.getMaxFrameSize(), inputProtocolFactory));
                 if (def.getClientIdleTimeout() != null) {
                     // Add handlers to detect idle client connections and disconnect them
-                    cp.addLast("idleDisconnectHandler", new IdleStateHandler(def.getClientIdleTimeout().toMillis(),
-                                                                             NO_WRITER_IDLE_TIMEOUT,
-                                                                             NO_ALL_IDLE_TIMEOUT,
-                                                                             TimeUnit.MILLISECONDS) {
+                    pipeline.addLast("idleDisconnectHandler", new IdleStateHandler(def.getClientIdleTimeout().toMillis(),
+                            NO_WRITER_IDLE_TIMEOUT,
+                            NO_ALL_IDLE_TIMEOUT,
+                            TimeUnit.MILLISECONDS) {
                         @Override
-                        protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt) throws Exception
-                        {
+                        protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt) throws Exception {
                             ctx.channel().close();
                         }
                     });
                 }
 
                 //cp.addLast("authHandler", securityHandlers.getAuthenticationHandler());
-                cp.addLast("dispatcher", new NiftyDispatcher(def, nettyServerConfig.getTimer()));
-                cp.addLast("exceptionLogger", new NiftyExceptionLogger());
+                pipeline.addLast("dispatcher", new NiftyDispatcher(def, nettyServerConfig.getTimer()));
+                pipeline.addLast("exceptionLogger", new NiftyExceptionLogger());
             }
         });
 
@@ -150,25 +136,20 @@ public class NettyServerTransport
         if (actualSocket instanceof InetSocketAddress) {
             int actualPort = ((InetSocketAddress) actualSocket).getPort();
             log.info("started transport {}:{} (:{})", def.getName(), actualPort, port);
-        }
-        else {
+        } else {
             log.info("started transport {}:{}", def.getName(), port);
         }
     }
 
-    public void stop()
-            throws InterruptedException
-    {
+    public void stop() throws InterruptedException {
         if (serverChannel != null) {
             log.info("stopping transport {}:{}", def.getName(), port);
             // first stop accepting
             final CountDownLatch latch = new CountDownLatch(1);
-            serverChannel.close().addListener(new ChannelFutureListener()
-            {
+            serverChannel.close().addListener(new ChannelFutureListener() {
                 @Override
                 public void operationComplete(ChannelFuture future)
-                        throws Exception
-                {
+                        throws Exception {
                     // stop and process remaining in-flight invocations
                     if (def.getExecutor() instanceof ExecutorService) {
                         ExecutorService exe = (ExecutorService) def.getExecutor();
@@ -187,26 +168,24 @@ public class NettyServerTransport
         ShutdownUtil.shutdownChannelFactory(bootstrap, allChannels);
     }
 
-    public Channel getServerChannel()
-    {
+    public Channel getServerChannel() {
         return serverChannel;
     }
 
     @ChannelHandler.Sharable
-    private static class ConnectionLimiter extends ChannelInboundHandlerAdapter
-    {
+    private static class ConnectionLimiter extends ChannelInboundHandlerAdapter {
+
         private final AtomicInteger numConnections;
+
         private final int maxConnections;
 
-        public ConnectionLimiter(int maxConnections)
-        {
+        public ConnectionLimiter(int maxConnections) {
             this.maxConnections = maxConnections;
             this.numConnections = new AtomicInteger(0);
         }
 
         @Override
-        public void channelRegistered(ChannelHandlerContext ctx) throws Exception
-        {
+        public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
             if (maxConnections > 0) {
                 if (numConnections.incrementAndGet() > maxConnections) {
                     ctx.channel().close();
@@ -219,8 +198,7 @@ public class NettyServerTransport
         }
 
         @Override
-        public void channelUnregistered(ChannelHandlerContext ctx) throws Exception
-        {
+        public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
             if (maxConnections > 0) {
                 if (numConnections.decrementAndGet() < 0) {
                     log.error("BUG in ConnectionLimiter");
@@ -231,8 +209,7 @@ public class NettyServerTransport
         }
     }
 
-    public NiftyMetrics getMetrics()
-    {
+    public NiftyMetrics getMetrics() {
         return channelStatistics;
     }
 }

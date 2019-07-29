@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
 /**
@@ -20,5 +21,5 @@ package com.facebook.nifty.core;
  * can't be used directly even if it was not abstract, because it uses a recursive generic
  * definition.
  */
-public class ThriftServerDefBuilder
-        extends ThriftServerDefBuilderBase<ThriftServerDefBuilder> {}
+public class ThriftServerDefBuilder extends ThriftServerDefBuilderBase<ThriftServerDefBuilder> {
+}

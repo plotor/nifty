@@ -28,9 +28,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.AttributeKey;
-import io.netty.util.Timeout;
 import io.netty.util.Timer;
-import io.netty.util.TimerTask;
 import org.apache.thrift.TApplicationException;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TMessage;
@@ -54,8 +52,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * message header for future async clients that can handle out-of-order responses).
  */
 public class NiftyDispatcher extends ChannelInboundHandlerAdapter {
+
     private final NiftyProcessorFactory processorFactory;
-    private final Executor exe;
+    private final Executor executor;
     private final long taskTimeoutMillis;
     private final Timer taskTimeoutTimer;
     private final int queuedResponseLimit;
@@ -68,7 +67,7 @@ public class NiftyDispatcher extends ChannelInboundHandlerAdapter {
         this.processorFactory = def.getProcessorFactory();
         this.duplexProtocolFactory = def.getDuplexProtocolFactory();
         this.queuedResponseLimit = def.getQueuedResponseLimit();
-        this.exe = def.getExecutor();
+        this.executor = def.getExecutor();
         this.taskTimeoutMillis = (def.getTaskTimeout() == null ? 0 : def.getTaskTimeout().toMillis());
         this.taskTimeoutTimer = (def.getTaskTimeout() == null ? null : timer);
     }
@@ -91,8 +90,7 @@ public class NiftyDispatcher extends ChannelInboundHandlerAdapter {
             try {
                 this.processRequest(ctx, thriftMessage, messageTransport, inProtocol, outProtocol);
             } catch (RejectedExecutionException ex) {
-                TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR,
-                        "Server overloaded");
+                TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Server overloaded");
                 this.sendTApplicationException(x, ctx, thriftMessage, messageTransport, inProtocol, outProtocol);
             }
         } else {
@@ -122,8 +120,7 @@ public class NiftyDispatcher extends ChannelInboundHandlerAdapter {
             final TNiftyTransport messageTransport,
             final TProtocol inProtocol,
             final TProtocol outProtocol) {
-        // Remember the ordering of requests as they arrive, used to enforce an order on the
-        // responses.
+        // Remember the ordering of requests as they arrive, used to enforce an order on the responses.
         final int requestSequenceId = dispatcherSequenceId.incrementAndGet();
 
         synchronized (responseMap) {
@@ -139,7 +136,7 @@ public class NiftyDispatcher extends ChannelInboundHandlerAdapter {
             }
         }
 
-        exe.execute(() -> {
+        executor.execute(() -> {
             ListenableFuture<Boolean> processFuture;
             final AtomicBoolean responseSent = new AtomicBoolean(false);
 
@@ -152,10 +149,8 @@ public class NiftyDispatcher extends ChannelInboundHandlerAdapter {
                             TApplicationException taskTimeoutException = new TApplicationException(
                                     TApplicationException.INTERNAL_ERROR,
                                     "Task stayed on the queue for " + timeElapsed +
-                                            " milliseconds, exceeding configured task timeout of " + taskTimeoutMillis +
-                                            " milliseconds.");
-                            NiftyDispatcher.this.sendTApplicationException(taskTimeoutException, ctx, message, messageTransport,
-                                    inProtocol, outProtocol);
+                                            " milliseconds, exceeding configured task timeout of " + taskTimeoutMillis + " milliseconds.");
+                            this.sendTApplicationException(taskTimeoutException, ctx, message, messageTransport, inProtocol, outProtocol);
                             return;
                         } else {
                             timeRemaining = taskTimeoutMillis - timeElapsed;
@@ -163,29 +158,25 @@ public class NiftyDispatcher extends ChannelInboundHandlerAdapter {
                     }
 
                     if (timeRemaining > 0) {
-                        taskTimeoutTimer.newTimeout(new TimerTask() {
-                            @Override
-                            public void run(Timeout timeout) throws Exception {
-                                // The immediateFuture returned by processors isn't cancellable, cancel() and
-                                // isCanceled() always return false. Use a flag to detect task expiration.
-                                if (responseSent.compareAndSet(false, true)) {
-                                    TApplicationException ex = new TApplicationException(
-                                            TApplicationException.INTERNAL_ERROR,
-                                            "Task timed out while executing."
-                                    );
-                                    // Create a temporary transport to send the exception
-                                    ByteBuf duplicateBuffer = message.getBuffer().duplicate();
-                                    duplicateBuffer.resetReaderIndex();
-                                    TNiftyTransport temporaryTransport = new TNiftyTransport(
-                                            ctx.channel(),
-                                            duplicateBuffer,
-                                            message.getTransportType());
-                                    TProtocolPair protocolPair = duplexProtocolFactory.getProtocolPair(
-                                            TTransportPair.fromSingleTransport(temporaryTransport));
-                                    NiftyDispatcher.this.sendTApplicationException(ex, ctx, message, temporaryTransport,
-                                            protocolPair.getInputProtocol(),
-                                            protocolPair.getOutputProtocol());
-                                }
+                        taskTimeoutTimer.newTimeout(timeout -> {
+                            // The immediateFuture returned by processors isn't cancellable, cancel() and
+                            // isCanceled() always return false. Use a flag to detect task expiration.
+                            if (responseSent.compareAndSet(false, true)) {
+                                TApplicationException ex = new TApplicationException(
+                                        TApplicationException.INTERNAL_ERROR, "Task timed out while executing."
+                                );
+                                // Create a temporary transport to send the exception
+                                ByteBuf duplicateBuffer = message.getBuffer().duplicate();
+                                duplicateBuffer.resetReaderIndex();
+                                TNiftyTransport temporaryTransport = new TNiftyTransport(
+                                        ctx.channel(),
+                                        duplicateBuffer,
+                                        message.getTransportType());
+                                TProtocolPair protocolPair = duplexProtocolFactory.getProtocolPair(
+                                        TTransportPair.fromSingleTransport(temporaryTransport));
+                                this.sendTApplicationException(ex, ctx, message, temporaryTransport,
+                                        protocolPair.getInputProtocol(),
+                                        protocolPair.getOutputProtocol());
                             }
                         }, timeRemaining, TimeUnit.MILLISECONDS);
                     }
@@ -211,10 +202,8 @@ public class NiftyDispatcher extends ChannelInboundHandlerAdapter {
                                 try {
                                     // Only write if the task hasn't expired.
                                     if (responseSent.compareAndSet(false, true)) {
-                                        ThriftMessage response = message.getMessageFactory().create(
-                                                messageTransport.getOutputBuffer());
-                                        NiftyDispatcher.this.writeResponse(ctx, response, requestSequenceId,
-                                                DispatcherContext.isResponseOrderingRequired(ctx));
+                                        ThriftMessage response = message.getMessageFactory().create(messageTransport.getOutputBuffer());
+                                        NiftyDispatcher.this.writeResponse(ctx, response, requestSequenceId, DispatcherContext.isResponseOrderingRequired(ctx));
                                     }
                                 } catch (Throwable t) {
                                     NiftyDispatcher.this.onDispatchException(ctx, t);

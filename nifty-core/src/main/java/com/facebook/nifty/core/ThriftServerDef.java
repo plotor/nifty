@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.core;
 
 import com.facebook.nifty.codec.ThriftFrameCodecFactory;
@@ -25,8 +26,7 @@ import java.util.concurrent.Executor;
 /**
  * Descriptor for a Thrift Server. This defines a listener port that Nifty need to start a Thrift endpoint.
  */
-public class ThriftServerDef
-{
+public class ThriftServerDef {
     private final int serverPort;
     private final int maxFrameSize;
     private final int maxConnections;
@@ -54,8 +54,7 @@ public class ThriftServerDef
             Duration taskTimeout,
             ThriftFrameCodecFactory thriftFrameCodecFactory,
             Executor executor,
-            NiftySecurityFactory securityFactory)
-    {
+            NiftySecurityFactory securityFactory) {
         this.name = name;
         this.serverPort = serverPort;
         this.maxFrameSize = maxFrameSize;
@@ -70,38 +69,31 @@ public class ThriftServerDef
         this.securityFactory = securityFactory;
     }
 
-    public static ThriftServerDefBuilder newBuilder()
-    {
+    public static ThriftServerDefBuilder newBuilder() {
         return new ThriftServerDefBuilder();
     }
 
-    public int getServerPort()
-    {
+    public int getServerPort() {
         return serverPort;
     }
 
-    public int getMaxFrameSize()
-    {
+    public int getMaxFrameSize() {
         return maxFrameSize;
     }
 
-    public int getMaxConnections()
-    {
+    public int getMaxConnections() {
         return maxConnections;
     }
 
-    public int getQueuedResponseLimit()
-    {
+    public int getQueuedResponseLimit() {
         return queuedResponseLimit;
     }
 
-    public NiftyProcessorFactory getProcessorFactory()
-    {
+    public NiftyProcessorFactory getProcessorFactory() {
         return processorFactory;
     }
 
-    public TDuplexProtocolFactory getDuplexProtocolFactory()
-    {
+    public TDuplexProtocolFactory getDuplexProtocolFactory() {
         return duplexProtocolFactory;
     }
 
@@ -109,25 +101,23 @@ public class ThriftServerDef
         return clientIdleTimeout;
     }
 
-    public Duration getTaskTimeout() { return taskTimeout; }
+    public Duration getTaskTimeout() {
+        return taskTimeout;
+    }
 
-    public Executor getExecutor()
-    {
+    public Executor getExecutor() {
         return executor;
     }
 
-    public String getName()
-    {
+    public String getName() {
         return name;
     }
 
-    public ThriftFrameCodecFactory getThriftFrameCodecFactory()
-    {
+    public ThriftFrameCodecFactory getThriftFrameCodecFactory() {
         return thriftFrameCodecFactory;
     }
 
-    public NiftySecurityFactory getSecurityFactory()
-    {
+    public NiftySecurityFactory getSecurityFactory() {
         return securityFactory;
     }
 }

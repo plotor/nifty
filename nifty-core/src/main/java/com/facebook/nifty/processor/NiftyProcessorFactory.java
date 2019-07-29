@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.facebook.nifty.processor;
 
 import org.apache.thrift.transport.TTransport;
 
-public interface NiftyProcessorFactory
-{
-    public NiftyProcessor getProcessor(TTransport transport);
+public interface NiftyProcessorFactory {
+    NiftyProcessor getProcessor(TTransport transport);
 }
